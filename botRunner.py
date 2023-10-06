@@ -478,7 +478,7 @@ def callback_worker(call):
 
 #print("My state:\n" + str(state_dict))
 
-survey_table = googleSheetTest.GoogleTableReader('1A_s-2vCoTmf9ElTCPg9inH1FbuwIHp0JbIAPcrCnYdA')
+survey_table = googleSheetTest.GoogleTableReader('some_token')
 
 
 survey_bot = SurveyBot("6490762220:AAGvcyX_YvSmeDkYcZw6oDSD0FjK4ayxlpc", survey_table)
