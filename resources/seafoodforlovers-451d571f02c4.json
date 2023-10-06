@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "seafoodforlovers",
+  "private_key_id": "451d571f02c471e35996ca95099426dd4e2002cf",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCNHP8zZgi1MjsW\n8ElRUVDr/3/LyGbY1WRYdm2hjLJ4fJXRhTVN2kdD3+/m2sexDHzgrmD8g617n+oP\n9liSYPRv0jvPtZq9OH2Fk871fVCkuEtvKxy1BcRTb6AxVYo5klRWZnBBzHJFJg0o\nzGOm+xXlnMnuQBmITGLVeKKx5cQ2D56GrIkeKsyIXG4BGqqnKnv/I6npDQq6g3jn\no5hkDNKvWGrZc9FOgFGQUFg7uhesRd0JWLViozgaPlgLX8lmSmIzn4Ksbjd8az8v\nTP6dmLWWIop231fLuWrJ9h8ZSEarP0TlWrPaz3n7f9ntZJmOT7Hd+/Xk/j+EXEuq\nC75jjCY9AgMBAAECggEAAJQAVakS2w8wH8lvO3aOUtEyqFaTWUsShKxDibhmWMkF\n4hxeGgoNZbFKrdLyo36OGmuMeSxe7xU6I8OaHEtqZPTjCthPIHxVQ1FWNTpEtNAO\new+dp/40jjT0Xo9fqBm537q+tf5M74yW3DZuKBZ6Qf0Q9LltgVnyw7YhUIJE+gW3\nzTtD+R1jkdw5WiWujzyViKOsQrgct7HEFMRVvsA2sQ5zDBJFwfnojnUCBldSBfZq\nwFtbhGhi/d5iAPSP2d+wCyI+JEvpVDs0PwKAmACCvHx27lC83d/vhXrAayZ63FwI\nG5jxOss4WOvPcB4iPwpFa2qlzMoaF/WOkhZNx8u2fwKBgQDC3/LCrIdmQQO0igfV\nG+h4gK+tPA9YGQjzmrYFkhV3Ii8YLPheBKxP/nJCaWdNKWg87CizYM8jtoJwbZtH\noO8hcskjKxXT7mpX+1TnmddMxbbpgczFmjDVihPNrji4AgOuwAhwq6QbvNsWe+B4\nTHb1AiF+OaSv1yV69hBNiWGjiwKBgQC5YBtO5pEbrCGy6e5n+bh1sb35cQuVQiZa\n10HxISQ5clSbHaMuZzn+XGnIQoA1gQQJNWWFVGSfWV2ipVUjcPCLxNrgqNzMTC8q\nsZZDWIM1VMH+ms+oA/Tl5YXuWnjnAgF1IPup7mIOf1Pa3xgLKYRlcIbVpMTvcIbg\nTC0lb2L2VwKBgAL9yQ4v88wgB1yIGeKtkP34i7nPCDVD/R0wLMcdHPM9NRfb6NwY\nmkSIFVzrnUhT8GOvBFjsjYFw1cPACvgogkMzLd86VBVyvXMoSn9bnzBwgIRJF8mY\nulMs0W0A1aINdd0C2Z5RJC3A0mQf9qwiEFlmdPkpDVwdo1el2041Y6hNAoGBALBA\n2LYkM0QEXeYm1i62GNSOsvpAqaq4wo8Mq/4AbNjSA++YNlcgftuCMnHeCNjWWmgH\nBQfIPgPkjErguBqCf7Pk79c7tvPoW9BUGXLe7aH/fJP/zgEKAge0O6ttChdaqNgd\nDCt+JG10Ut5/z/SM/P0WCJ2JlFW0wAjzZNl7FrTxAoGAKrHixJ42gd+TKk6wGG4j\nNdXizSnK974+G/BW9B2iz7EgSm1QgL88R/IQL36Gs61qftOT0RDZZOQ7DoWq5mbm\nVAH7PbWlG1AcNFi3ZX8NQ5/KFLZRzRc/H22qczJqulgtfe3r+an4k9hwz4t8x8TD\nKYTkNl7SIVXilUhzAj4gBDU=\n-----END PRIVATE KEY-----\n",
+  "client_email": "seafoodforlovers@seafoodforlovers.iam.gserviceaccount.com",
+  "client_id": "102171086262428770819",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/seafoodforlovers%40seafoodforlovers.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
