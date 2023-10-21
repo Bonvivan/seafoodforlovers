@@ -847,11 +847,6 @@ state_f = open('resources/tokens.json', 'r')
 tokens = json.load(state_f)
 state_f.close()
 
-
-logger = telebot.logger
-
-print("Starting the program")
-
 survey_table = googleSheetTest.GoogleTableReader(tokens['gsheet'])
 survey_bot = SurveyBot(tokens['bot_token'], survey_table, tokens['p_tocken']) #new testing bot with working shop
 
