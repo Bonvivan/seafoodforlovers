@@ -3,14 +3,15 @@ from telebot import apihelper
 from telebot import types
 import re
 import calendar
-import datetime
+from   datetime import datetime, date
+import datetime as dt
 import itertools
-import logging
-import json
-import requests
+import commands
+import textProcess as tp
+import threading
 
 import googleSheetTest
-import spectialKeys
+import json
 
 '''
 @bot.channel_post_handler(content_types=["text", "audio", "photo", "video"])
@@ -22,102 +23,337 @@ def greeting(message):
 
 
 class SurveyBot(telebot.TeleBot):
-    introduction_dict = {}
-    survey_dict       = {}
-    pupils            = []
-
     data_table = None
 
-    intro_msgs = []
-    user_status  = {}
-    user_expected_info    = {}
-    #user_last_msg = {}
+    user_cell_position  = {}
+    user_chat_id        = {}
+    user_command        = {}
+    teacher_command     = {}
 
-    mystate = {}
+    bot_state           = {}
+    schedule            = {}
 
-    def __init__(self, bot_token, data_table):
+    now_processing_id = -1
+
+    PRICE_1 = types.LabeledPrice(label=  "3 месяца обучения", amount=1010 * 100)  # в копейках (руб)
+    PRICE_2 = types.LabeledPrice(label= "6 месяцев обучения", amount=92000 * 100)  # в копейках (руб)
+    PRICE_3 = types.LabeledPrice(label="12 месяцев обучения", amount=179000 * 100)  # в копейках (руб)
+    PAYMENT_TOCKEN = ''
+
+
+    def __init__(self, bot_token, data_table, pay_tocken):
         super().__init__(bot_token)
-
         self.bot_state_filepath = 'resources\\' + self.user.username + '.json'
-
         try:
             state_f = open(self.bot_state_filepath, 'r')
-            self.mystate = json.load(state_f)
+            self.bot_state = json.load(state_f)
         except:
             pass
 
-        self.survey_dict = {}
+        self.PAYMENT_TOCKEN = pay_tocken
+
+        self.now_processing_id = -1
+
         self.data_dstn   = {}
-        #self.pupils      = pupils
+        self.schedule    = {}
 
         self.data_table = data_table
         self.survey_dict = self.data_table.getPupilStruct(sheetName='pupils')
         self.__invert_datasource_link(self.survey_dict)
 
-        @self.message_handler(commands=['trial'])
-        def try_command(message):
-            markup = types.InlineKeyboardMarkup(row_width=2)  # , one_time_keyboard=True, resize_keyboard=True)
-            key_b = types.InlineKeyboardButton('Text of btn', switch_inline_query_current_chat='Text to edit')
-            markup.add(key_b)
-            self.send_message(message.from_user.id, 'Bla-bla-bla', reply_markup=markup)
-            #self.register_next_step_handler(message, callback_button)
+        threading.Timer(30.0, self.checkSchedule).start()
 
-            #msg = self.send_message(message.chat.id, 'Text')
-            #self.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text='Edited text')
+        self.init_state()
+
+        @self.message_handler(commands=['trial_chat'])
+        def try_command(message):
+            uid = message.from_user.id
+            self.create_chat_invite_link(-4070680015)
             pass
 
-        @self.message_handler(commands=['vai_lezioni'])
-        def try_command(message):
-            markup = types.InlineKeyboardMarkup(row_width=2)  # , one_time_keyboard=True, resize_keyboard=True)
-            #self.send_message(message.from_user.id, 'A.... зто... уроки еще не готовы. Спокойно, целая ночь впереди!', reply_markup=markup)
 
-            if not ('chefid' in self.mystate) or int(self.mystate['chefid']) < 0:
+        @self.message_handler(commands=['trial_1'])
+        def try_command(message):
+            print('try_command')
+            self.send_invoice(message.chat.id,
+                           title="3 месяца обучения",
+                           description="Любой уровень на ваш выбор. Идеально подойдет тем, кому нужно говорить уже вчера, нет системных знаний и хочется почувствовать прогресс в обучении.",
+                           provider_token=self.PAYMENT_TOCKEN,
+                           currency="rub",
+                           is_flexible=False,
+                           prices=[self.PRICE_1],
+                           start_parameter="one-month-subscription",
+                           invoice_payload="test-invoice-payload",
+                           photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
+                           photo_height=478,
+                           photo_width=512,
+                           photo_size=512)
+
+            pass
+
+        @self.message_handler(commands=['trial_2'])
+        def try_command(message):
+            print('try_command')
+            self.send_invoice(message.chat.id,
+                              title="6 месяцев обучения",
+                              description="Любые два уровня на ваш выбор. Можно начать с нуля или продолжить обучение. Мощное погружение в язык со значительными результатами.",
+                              provider_token=self.PAYMENT_TOCKEN,
+                              currency="rub",
+                              is_flexible=False,
+                              prices=[self.PRICE_2],
+                              start_parameter="one-month-subscription",
+                              invoice_payload="test-invoice-payload",
+                              photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
+                              photo_height=478,
+                              photo_width=512,
+                              photo_size=512)
+
+            pass
+
+        @self.message_handler(commands=['trial_3'])
+        def try_command(message):
+            print('try_command')
+            self.send_invoice(message.chat.id,
+                              title="12 месев обучения",
+                              description="Полный курс обучения. С нуля и до уверенного владения итальянским. Через год можно покупать билеты и уезжать в Италию!",
+                              provider_token=self.PAYMENT_TOCKEN,
+                              currency="rub",
+                              is_flexible=False,
+                              prices=[self.PRICE_3],
+                              start_parameter="one-month-subscription",
+                              invoice_payload="test-invoice-payload",
+                              photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
+                              photo_height=478,
+                              photo_width=512,
+                              photo_size=512)
+
+            pass
+
+
+        # pre checkout  (must be answered in 10 seconds)
+        @self.pre_checkout_query_handler(lambda query: True)
+        def pre_checkout_query(pre_checkout_q: types.PreCheckoutQuery):
+            self.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
+            print('Preliminary test')
+            
+
+        @self.message_handler(content_types=['successful_payment'])
+        def successful_payment(message: types.Message):
+            print("SUCCESSFUL PAYMENT:")
+            payment_info = message.successful_payment
+            print(payment_info)
+
+
+        @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('//vai_lezioni',m.text)==len('//vai_lezioni')) #TODO: move to commands
+        @self.single_user_decorator
+        def lesson_command(message):
+            print('lesson_command')
+            if not ('chefid' in self.bot_state) or int(self.bot_state['chefid']) < 0:
                 self.send_message(message.from_user.id, "Не могу создать урок, учитель не активировал опцию, поробуйте позже")
             else:
                 if(self.__check_user_info(message.from_user.id)):
                     self.create_lesson_chat(message.from_user)
+                elif self.user_chat_id[message.from_user.id]!=-1:
+                    chat_id = int(self.user_chat_id[message.from_user.id])
+                    link = self.create_chat_invite_link(chat_id).invite_link
+                    self.send_message(message.from_user.id, "Вы уже создали чат для урока: " + link)
                 else:
-                    self.send_message(message.from_user.id,"Вы не закончили опрос")
-                    self.send_message(message.from_user.id, '/start', reply_markup=markup)
+                    self.send_message(message.from_user.id, "Вы не закончили опрос.")
             pass
 
+        @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('/savechannel',m.text)==len('/savechannel')) #TODO: move to commads
+        @self.single_user_decorator
+        def new_chat_event(message):
+            print('new_chat_event')
+            if message.from_user.id != self.bot_state['chefid']:
+                self.send_message(message.from_user.id,
+                                  "Только администратор бота может отдавать комманду на создание обучающего чата")
+
+            cmd     = tp.parseCommand(message.text)
+            uid     = cmd['args'][0]
+            cid     = cmd['args'][1]
+            ch_date = cmd['args'][2]
+            try:
+                cid = -int(cid)
+                data_table.setFieldValue(cid, int(uid), 'chat_id'  )
+                data_table.setFieldValue(ch_date , int(uid), 'date_start')
+                self.user_chat_id[int(uid)]=cid
+                self.start_lesson(int(uid), cid, message)
+            except Exception as err:
+                self.send_message(uid,
+                                  "Вас не в базе учеников, вероятно вы не прошли опрос. Наберите /start")
+            pass
+
+        @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('/tunnelmsg', m.text) == len('/tunnelmsg')) #TODO: move to commands
+        @self.single_user_decorator
+        def tunnel_msg(message):
+            print('tunnel_msg')
+            try:
+                cmd = tp.parseCommand(message.text)
+                id_u = data_table.getAllPupilColumns(['id','username'])
+                _id = id_u[0][id_u[1].index(cmd['args'][0])]
+                self.send_message(_id,cmd['args'][1])
+            except:
+                pass
+
         @self.message_handler(commands=['imyourchief'])
-        def try_command(message):
+        def chief_command(message):
+            print('chief_command')
             if message.from_user.username=='roro_tmp':
                 self.send_message(message.from_user.id, "Your are chief, I was waiting for you!")
-                self.mystate['chefid']   = message.from_user.id
-                self.mystate['chiefname'] = message.from_user.username
+                self.bot_state['chefid']   = message.from_user.id
+                self.bot_state['chiefname'] = message.from_user.username
             else:
                 self.send_message(message.from_user.id, "Your username is wrong, you are not a chief")
 
             state_f = open(self.bot_state_filepath, 'w')
-            json.dump(self.mystate, state_f)
+            json.dump(self.bot_state, state_f)
             state_f.close()
 
         @self.message_handler(commands=['start'])
+        @self.single_user_decorator
         def start_command(message):
+            print('start_command')
             user = self.__check_user(message.from_user.id)
             if (user==None):
-                self.user_status[message.from_user.id] = 'intro!A1'
+                self.user_cell_position[message.from_user.id] = 'intro!A1'
             else:
-                self.user_status = {**self.user_status, **user}
-
-            self.say_hello(message)
-
+                self.user_cell_position  = {**self.user_cell_position, **user[0]}
+                self.user_chat_id = {**self.user_cell_position, **user[1]}
+            self.say_hello(message.from_user.id, chat_id=message.chat.id)
         pass
 
-        '''
-        @self.inline_handler(func=lambda c: True)
-        def process_update(inline_query):
-            accept = types.InlineQueryResultArticle('Принять изменения', 'Принять изменения', types.InputTextMessageContent('hi'))
-            r2 = types.InlineQueryResultArticle('2', 'Result2', types.InputTextMessageContent('hi'))
-            self.answer_inline_query(inline_query.id, [accept] ,cache_time = 1)        
-            print(inline_query)
+        @self.message_handler(commands=['call'])
+        @self.single_user_decorator
+        def status_command(message):
+            uid = message.from_user.id
+            cid = message.chat.id
+            if not (uid in self.user_chat_id):
+                return None
+            if cid!=self.user_chat_id[uid]:
+                return None
+
+            link = self.create_chat_invite_link(int(cid)).invite_link
+            result = self.send_message(self.bot_state['chefid'], 'ВОПРОС ИЛИ СБОЙ В ЧАТЕ: \n' + link)
+            now = datetime.now(dt.UTC)
+            self.data_table.setFieldValue(
+                str(result.chat.id) + ';' + str(result.message_id) + ';' + str(now.isoformat()), uid, 'extra_call')
             pass
-        '''
+
+        @self.message_handler(commands=['solved'])
+        @self.single_user_decorator
+        def status_command(message):
+            tid = message.from_user.id
+            cid = message.chat.id
+            if tid != int(self.bot_state['chefid']):
+                self.send_message(cid, 'Запрос на вызов преподавателя снят')
+
+            call_msg = self.data_table.getFieldValue(cid, 'extra_call', key_column='chat_id')
+            call_chat_id, call_msg_id, when = call_msg.split(';')
+            try:
+                self.edit_message_text('Запрос снят', chat_id=int(call_chat_id), message_id=int(call_msg_id))
+            except:
+                pass
+            self.data_table.setFieldValue(None, cid, 'extra_call', key_column='chat_id')
+
+            pass
+
+        @self.message_handler(commands=['delete'])
+        @self.single_user_decorator
+        def status_command(message):
+            uid = message.from_user.id
+            cid = message.chat.id
+            if (uid in self.user_chat_id) and self.user_chat_id[uid] != -1:
+                self.send_message(cid, 'Нельзя удалить пользователя после создания чата.')
+                return None
+          #  self.data_table.deletePupil(uid)
+            pass
+
+        @self.message_handler(commands=['status'])
+        @self.single_user_decorator
+        def status_command(message):
+            uid = message.from_user.id
+            cid = message.chat.id
+            wait_command = False
+            print('status_command')
+            user_status = self.data_table.getPupilStatus(uid)
+            if (user_status is None):
+                self.send_message(cid, 'Вы новый ученик: \n /start чтоб перейти к обучению.')
+                return None
+            elif int(user_status['chat_id']) == -1:
+                self.send_message(cid, "Вы проходите опрос.")
+                self.send_message(cid, "\n/start чтоб перейти к последнему вопросу;" +
+                                       "\n/delete чтоб удалить свои данные и закончить.")
+                return None
+            txt = ''
+            chat_id = int(self.user_chat_id[uid])
+            when = datetime.fromisoformat(user_status['date_start'])
+            self.send_message(cid, "Вы начали обучение " + str(when.date()))
+            if chat_id != cid:
+                link = self.create_chat_invite_link(chat_id).invite_link
+                self.send_message(cid, "Ваш чат для обучения: " + link)
+            if 'call_message_id' in user_status.keys() and user_status['call_message_id'] != '':
+                r1, r2, when = user_status['call_message_id'].split(';')
+                when = datetime.fromisoformat(when)
+                self.send_message(cid, "Отправлен запрос на проверку " +
+                                  str(when.date())  + ' в ' +
+                                  str(when.hour)  + ':' + str(when.minute) + 'GMT;')
+            else:
+                wait_command = True
+            if 'extra_call' in user_status.keys() and user_status['extra_call'] != '':
+                r1, r2, when = user_status['extra_call'].split(';')
+                when = datetime.fromisoformat(when)
+                self.send_message(cid, "Отправлено уведомление о вопросе или сбое " +
+                                  str(when.date())  + ' в ' +
+                                  str(when.hour)  + ':' + str(when.minute) + 'GMT;')
+                txt += "\n/solved - снять запрос на вызов преподавателя;"
+            if 'delayed_event' in user_status.keys() and user_status['delayed_event'] != '':
+                when, cell = user_status['delayed_event'].split(';')
+                when = datetime.fromisoformat(when)
+                self.send_message(cid, "Следующий урок будет выслан: " +
+                                  str(when.date())  + ' в ' +
+                                  str(when.hour)  + ':' + str(when.minute) + 'GMT;')
+            if 'score' in user_status.keys() and user_status['score'] != '':
+                score = int(user_status['score'])
+                self.send_message(cid, "На вашем счету: " + str(score) + ' баллов.')
+
+            txt += "\n/start - повторно выслать последнее сообщение и в случае сбоя;"
+            txt += "\n/call  - уведомить преподавателя о вопросе или сбое."
+
+            if wait_command:
+                c = self.user_command[uid]
+                txt += '\n//' + str(c[0]) + ' - ' + commands.COMMANDS.soft_commands[str(c[0])]
+            self.send_message(cid, txt)
+        pass
+
+        @self.message_handler(content_types=['text'])
+        @self.single_user_decorator
+        def text_message(message):
+            self.read_commands(message)
+        pass
+
+        @self.callback_query_handler(func=lambda c: c.data.startswith('tomorrow'))
+        @self.single_user_decorator
+        def next_step_delay(callback_query: types.CallbackQuery):
+            print('next_step_delay')
+            self.answer_callback_query(callback_query.id)
+            uid = callback_query.from_user.id
+            ####
+            _today = datetime(datetime.today().year, datetime.today().month, datetime.today().day)
+            _tomorrow = _today + dt.timedelta(days=1) + dt.timedelta(hours=4)
+            _tomorrow_test  = datetime.now(dt.UTC) + dt.timedelta(minutes=5)
+            #TODO: change  tomorrow_test to tomorrow
+            event_stamp = str(_tomorrow_test.isoformat()) + ';' + callback_query.data.split(';')[-1]
+            self.data_table.setFieldValue(event_stamp, uid, 'delayed_event')
+            self.schedule[uid] = {'time': _tomorrow_test,  'cell': callback_query.data.split(';')[-1]}
+            txt = 'Следующий урок будет выслан ' + str(_tomorrow.date()) + ' в ' + str(_tomorrow.hour) + ':' + str(_tomorrow.minute) + ' GMT.'
+            self.send_message(callback_query.message.chat.id, txt)
+            pass
 
         @self.callback_query_handler(func=lambda c: c.data.startswith('saveuser'))
+        @self.single_user_decorator
         def newuser_callback_button(callback_query: types.CallbackQuery):
+            print('newuser_callback_button')
             self.answer_callback_query(callback_query.id)
             print(callback_query)
             print('Sending request to save user')
@@ -134,9 +370,11 @@ class SurveyBot(telebot.TeleBot):
                 pass
 
         @self.callback_query_handler(func=lambda c: c.data.startswith('unch'))
+        @self.single_user_decorator
         def goback_callback_button(callback_query: types.CallbackQuery):
-            print(callback_query)
-            self.answer_callback_query(callback_query.id)
+            print('goback_callback_button')
+            try: self.answer_callback_query(callback_query.id)
+            except: pass
             callback_query.message.from_user.id = callback_query.from_user.id
             callback_query.message.text = callback_query.data.split(';')[1]
             try:
@@ -149,12 +387,220 @@ class SurveyBot(telebot.TeleBot):
             callback_query.message.from_user.is_bot = False
             goback_callback_button(callback_query)
 
-    def goahead(self, message, dptr, address):
-        #print(message)
+        '''
+        @self.single_user_decorator
+        @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('channal_deleted',m.text)==len('/channal_deleted'))
+        def deleted_chat_event(message):
+            print('deleted_chat_event')
+            try:
+                cmd = tp.parseCommand(message.text)
+                uid = cmd['args'][1]
+                self.send_message(uid, 'Чат был удален из-за того, что пользователь не присоеденился вовремя.\n /vai_lezioni чтоб создать новый чат.')
+            except:
+                pass
+            print('Chat was deleted due to outdue joining: ' + message.text)
+            pass
+        '''
+
+    def single_user_decorator(self, function_to_decorate):
+        def wrapper(*args):
+            print('Sigle user decorator')
+            uid = args[0].from_user.id
+            if (self.now_processing_id == uid):
+                return None
+            else:
+                self.now_processing_id = uid
+            try:
+                res = function_to_decorate(*args)
+            except: res = None
+            self.now_processing_id = -1
+            return res
+
+        return wrapper
+
+    def init_state(self):
+        all_pupils = self.data_table.getAllValue('pupils')
+        id_index      = all_pupils[0].index('id')
+        chat_id_index = all_pupils[0].index('chat_id')
+        cell_index    = all_pupils[0].index('status')
+        schedule_index = all_pupils[0].index('delayed_event')
+
+        ids          = [ int(row[id_index])      for row in all_pupils[4:]]
+        chat_ids     = [ int(row[chat_id_index]) for row in all_pupils[4:]]
+        cell_ids     = [ row[cell_index]         for row in all_pupils[4:]]
+        schedule     = [ row[schedule_index]     for row in all_pupils[4:]]
+
+        for i in range(len(ids)):
+            self.user_cell_position[ids[i]] = cell_ids[i]
+            try:
+                self.user_chat_id[ids[i]] = int(chat_ids[i])
+            except:
+                self.user_chat_id[ids[i]] = -1
+
+            try:
+                sch_data = schedule[i].split(';')
+                self.schedule[ids[i]] = {'time': datetime.fromisoformat(sch_data[0]), 'cell': sch_data[1]}
+            except:
+                pass
+
+        for uid in ids:
+            self.read_from_cell(uid)
+
+    def checkSchedule(self):
+        threading.Timer(300.0, self.checkSchedule).start()
+        print('checkSchedule')
+        for uid in list(self.schedule.keys()):
+            evnt = self.schedule[uid]
+            if evnt is None:
+                continue
+            if evnt['time'] <= datetime.now(dt.UTC):
+                    self.user_cell_position[uid] = evnt['cell']
+                    if uid in self.user_chat_id:
+                        chat_id = self.user_chat_id[uid]
+                    else:
+                        chat_id = uid
+
+                    self.say_hello(uid, chat_id)
+                    self.__savestatus(uid, self.user_cell_position[uid])
+                    self.cleanSchedule(uid)
+        pass
+
+    def cleanSchedule(self, uid):
+        self.data_table.setFieldValue(None, uid, 'delayed_event')
+        self.schedule.pop(uid)
+    def start_lesson(self, uid, chat_id, message):
+        print('start_lesson')
+        level = self.data_table.getFieldValue(uid, 'level')
+        self.user_chat_id[uid] = int(chat_id)
+        dptr = self.user_cell_position[uid]
+        addr = dptr
+        if level == 'A1':
+            addr = 'lezione_A1!A1'
+        elif level == 'A2':
+            addr = 'lezione_A2!A1'
+        elif level == 'B1':
+            addr = 'lezione_B1!A1'
+        elif level == 'B2':
+            addr = 'lezione_B2!A1'
+        else:
+            return None
+        message.from_user.id = uid
+        message.chat.id      = chat_id
+        self.goahead(message, dptr, addr)
+        pass
+
+    def user_command_processor(self, message, addr):
+        uid = message.from_user.id
+        chat_id = message.chat.id
+        cmd = self.__extract_command(message.text)
+        if message.text[0]!='/':
+            if cmd == self.user_command[uid][0]:
+                addr[0] = self.user_command.pop(uid)[1]
+            return True
+        else:
+            pass
+        # cmd[0]=='/':
+        if cmd != self.user_command[uid][0]:
+            return False
+
+        addr[0] = self.user_command.pop(uid)[1]
+        if cmd == 'le_risposte':
+            pass
+
+        if cmd == 'checkme':
+            link = self.create_chat_invite_link(int(self.user_chat_id[uid])).invite_link
+            result = self.send_message(self.bot_state['chefid'], 'Запрос на проверку урока: \n' + link)
+            print(result)
+            now = datetime.now(dt.UTC)
+            self.data_table.setFieldValue(str(result.chat.id) + ';' + str(result.message_id) + ';' + str(now.isoformat()), uid, 'call_message_id')
+
+        return True
+
+    def teacher_command_processor(self, message, addr):
+        tid = message.from_user.id
+        chat_id = message.chat.id
+        cmd = self.__extract_command(message.text)
+
+        if message.text[0] != '/':
+            if cmd == self.teacher_command[tid][0]:
+                addr[0] = self.teacher_command.pop(tid)[1]
+            return True
+        else:
+            pass
+
+        # cmd[0]=='/':
+        if cmd != self.teacher_command[chat_id][0]:
+            return False
+
+        addr[0] = self.teacher_command.pop(chat_id)[1]
+        if cmd == 'checked':
+            if tid == int(self.bot_state['chefid']):
+                call_msg = self.data_table.getFieldValue(chat_id, 'call_message_id', key_column='chat_id')
+                call_chat_id, call_msg_id, when = call_msg.split(';')
+                print('!!!')
+                try: self.edit_message_text('Урок проверен', chat_id=int(call_chat_id), message_id=int(call_msg_id))
+                except: pass
+                self.data_table.setFieldValue(None, chat_id, 'call_message_id', key_column='chat_id')
+                print('!!!')
+            else:
+                return False
+
+        return True
+
+    def wrong_command_report(self, msg):
+        cmd = self.__extract_command(msg.text)
+        self.send_message(msg.chat.id, 'Неизвестная команда ' + str(cmd))  # TODO define abstract class MSG sending an apppropriate type of msg (method send())
+    def read_commands(self, message):
+        uid = message.from_user.id
+        chat_id = message.chat.id
+        cmd = ''
+       # if uid in self.user_cell_position.keys():
+       #     addr = [self.user_cell_position[uid]]
+       # else:
+        addr = [None]
+
+        if chat_id in self.teacher_command.keys():
+            if not (self.teacher_command_processor(message, addr)):  # reading of next cell address here
+                self.wrong_command_report(message)
+               # self.read_from_cell(uid)
+                return None
+
+        elif uid in self.user_command:
+            if not (self.user_command_processor(message, addr)):  # reading of next cell address here
+                self.wrong_command_report(message)
+                self.read_from_cell(uid)
+                return None
+
+        if addr[0]==None:
+            return None
+
+        if uid in self.user_cell_position:
+            dptr = self.user_cell_position[uid]
+        else:
+            pupil_id = self.__find_keys(self.user_chat_id, chat_id)
+            if not pupil_id:
+                return None
+            dptr = self.user_cell_position[pupil_id[0]]
+
+        self.goahead(message, dptr, addr[0])
+        pass
+
+    def goahead(self, message, dptr, addr): #processing of an incoming message
         print('goahead')
 
         uid = message.from_user.id
-        if (not(self.user_status[uid] == dptr)):
+        chat_id = message.chat.id
+        if message.from_user.id == int(self.bot_state['chefid']):
+            pupil_id = self.__find_keys(self.user_chat_id, chat_id)
+            if not pupil_id:
+                pass
+            else:
+                uid = pupil_id[0]
+
+        cmd = ''
+        if not(uid in self.user_cell_position):
+            self.user_cell_position[uid] = dptr
+        if (not(self.user_cell_position[uid] == dptr)):
             return None
 
         try:
@@ -162,141 +608,216 @@ class SurveyBot(telebot.TeleBot):
         except:
             pass
 
-        message.text = message.text.replace('@'+self.user.username, '')
-        message.text = message.text.strip()
-
-        if self.user_status[uid] in self.data_dstn and message.from_user.is_bot == False:
-            field_name = self.data_dstn[self.user_status[uid]]
-            self.data_table.setFieldValue(message.text, uid, field_name)
+        #update user status in the chat
+        if self.user_cell_position[uid] in self.data_dstn and message.from_user.is_bot == False:
+            field_name = self.data_dstn[self.user_cell_position[uid]]
+            self.data_table.setFieldValue(tp.cleanMessage(message.text, self.user.username), uid, field_name)
             print('Message to be logged: ' + message.text)
 
-        #if uid in self.user_expected_info and message.from_user.is_bot == False:
-        #    field_name = self.data_dstn[self.user_expected_info.pop(uid)['source']]
-        #    self.data_table.setFieldValue(message.text, uid, field_name)
-        #    print('Message to be logged: ' + message.text)
-
-
-
-        self.user_status[uid] = address
-        self.__savestatus(uid, self.user_status[uid])
-        self.say_hello(message)
+        # update user status in the chat
+        self.user_cell_position[uid] = addr # jumping to the next cell in user status
+        try:
+            self.__savestatus(uid, self.user_cell_position[uid]) #saving status (cell id where the user is)
+        except Exception as err:
+            print(err)
+        self.say_hello(uid, chat_id) # sending a reply (content of the message froma cell)
         pass
 
-    def say_hello(self, message):
-        print('sayhello')
-        uid = message.from_user.id
-        markup = types.InlineKeyboardMarkup(row_width=2)#, one_time_keyboard=True, resize_keyboard=True)
-        question_text = ['']
+    def read_from_cell(self, user_id): #sending of a reply message
+        print('read from cell')
+        _id = user_id
+        uid = user_id
+        if _id in self.user_chat_id:
+            if self.user_chat_id[_id]!=-1:
+                try:
+                    _id = int(self.user_chat_id[_id])
+                except: pass
         try:
-            msg = self.data_table.getValueFromStr(self.user_status[uid])[0][0]
+            msg = self.data_table.getValueFromStr(self.user_cell_position[uid])[0][0]
         except Exception as err:
-            self.send_message(uid, 'Что-то сломалось(( Для перезапуска наребирте /start', reply_markup=markup)
-            if uid in self.user_status:
-                print('Error in table reading, desired range: ' + self.user_status[uid])
+            self.send_message(uid, 'Что-то сломалось(( Когда починят, придет уведомление')
+            if uid in self.user_cell_position:
+                print('Error in table reading, desired range: ' + self.user_cell_position[uid])
             else:
                 print('Key error in table reading: ' + str(uid))
             print(err)
             return None
 
-        past_answer=''
-        if(self.user_status[uid] in self.data_dstn):
-            k = self.data_dstn[self.user_status[uid]]
-            self.user_expected_info[uid] = self.survey_dict[k]
-            fieldname = self.data_dstn[self.user_expected_info[uid]['source']]
-            content = self.data_table.getFieldValue(uid, fieldname)
-            if not(content is None):
-                past_answer = '\n' + '<i>' + content + '</i>'
+        content = tp.parseMessage(msg)
+        self.__createKeyFromContent(uid, _id, content['buttons'])
+        pass
 
+    def say_hello(self, user_id, chat_id=None): #sending of a reply message
+        print('sayhello')
 
-        content = self.__messageParser(msg)
-        btns = self.__createKeyFromContent(uid, content)
-        for i in range(len(btns)):
-            if btns[i] is None:
-                self.register_next_step_handler(message, self.goahead, self.user_status[uid], content[2][i])
+        if chat_id is None:
+            chat_id = user_id
+        uid = user_id
+        _id = chat_id
+
+        '''
+        if _id in self.user_chat_id.keys():
+            if self.user_chat_id[_id]!=-1:
+                try:
+                    _id = int(self.user_chat_id[_id])
+                except: pass
+        else:
+            pupil_id = self.__find_keys(self.user_chat_id, chat_id)
+            if not pupil_id:
+                pass
             else:
+                uid = pupil_id[0]
+        '''
+
+        markup = types.InlineKeyboardMarkup(row_width=2)#, one_time_keyboard=True, resize_keyboard=True)
+        question_text = ['']
+        try:
+            msg = self.data_table.getValueFromStr(self.user_cell_position[uid])[0][0]
+        except Exception as err:
+            self.send_message(_id, 'Что-то сломалось(( Для перезапуска наребирте /start', reply_markup=markup)
+            if _id in self.user_cell_position:
+                print('Error in table reading, desired range: ' + self.user_cell_position[_id])
+            else:
+                print('Key error in table reading: ' + str(_id))
+            print(err)
+            return None
+
+        past_answer=''
+        if(self.user_cell_position[uid] in self.data_dstn):
+            fieldname = self.data_dstn[self.user_cell_position[uid]]
+            content = self.data_table.getFieldValue(_id, fieldname)
+            if not(content is None):
+                past_answer = '\n<i>' + content.strip() + '</i>'
+
+        content = tp.parseMessage(msg, past_answer)
+        btns = self.__createKeyFromContent(uid, _id, content['buttons'])
+        for i in range(len(btns)):
+            if not(btns[i] is None):
                 markup.add(btns[i])
                 pass
-        msgs = content[0]
 
-        for m in reversed(msgs):
-            if m[1]=='txt':
-                m[0] = m[0] + past_answer
-
+        msgs = content['content']
         for i in range(len(msgs)):
             m = msgs[i]
-            mrk = None
-            if i==len(msgs)-1:
-                mrk = markup
-            if m[1]=='txt':
-                self.send_message(message.from_user.id, m[0], reply_markup=mrk, parse_mode='html')
-                continue
-            if 'image' in m[1]:
-                self.send_photo(message.from_user.id, m[0], reply_markup=mrk)
-                continue
-            pass
+            mrk = markup if i==len(msgs)-1 else None
 
+            mtype = m[1]
+            if m[0]=='':
+                continue
+            print('Sending part of message')
+            try:
+                if mtype==tp.MSG_TYPE.text:
+                    self.send_message(_id, m[0], reply_markup=mrk, parse_mode='html') #TODO define abstract class MSG sending an apppropriate type of msg (method send())
+                elif mtype==tp.MSG_TYPE.image:
+                    self.send_photo(_id, m[0], reply_markup=mrk)
+                elif mtype == tp.MSG_TYPE.video:
+                    self.send_video(_id, m[0], reply_markup=mrk)
+                elif mtype == tp.MSG_TYPE.audio:
+                    self.send_audio(_id, m[0], reply_markup=mrk)
+                elif mtype == tp.MSG_TYPE.audionote:
+                    self.send_voice(_id, m[0])
+            except:
+                self.send_message(_id, m[0], reply_markup=mrk)
         pass
 
     def create_lesson_chat(self, pupil_user):
-        participants = [self.user.username, self.mystate['chiefname'], pupil_user.username]
+        participants = [self.user.username, self.bot_state['chiefname'], pupil_user.username]
         txt = '/create_a_channal;'+';'.join(participants)
-        self.send_message(self.mystate['chefid'], txt)
+        self.send_message(self.bot_state['chefid'], txt)
         pass
 
     def run(self):
         self.polling(none_stop=True, interval=0)
 
-    def __savestatus(self, id, status):
+    def __find_keys(self, d, value):
+        return [key for key, x in d.items() if str(x) == str(value)]
+    def __extract_command(self, msg):
+        z = re.match('//([a-zA-Z0-9-_]+)@?\.*', msg)
+        if not(z):
+            return ''
+        return z.groups()[0]
+        pass
 
+    def __savestatus(self, id, status):
         pupils = self.data_table.getAllPupilColumns(['id'])[0]
         if str(id) in pupils:
             self.data_table.setFieldValue(status, id, 'status', sheetName='pupils')
+            self.data_table.setFieldValue(str(datetime.now(dt.UTC).isoformat()), id, 'last_activity_date', sheetName='pupils')
 
-    def __createKeyFromContent(self, id, content):
+    def __createKeyFromContent(self, id, chat_id, content):
+
+        self.user_command   .pop(id     , None)
+        self.teacher_command.pop(chat_id, None)
+
         btns = []
-        user_status = self.user_status[id]
+        user_status = self.user_cell_position[id]
         open_input_flad = 0
-        for b, addr, sp in zip(*content[1:]):
-            if sp == '/input' and open_input_flad == 0:
-                btns.append(None)
-                open_input_flad += 1
-                continue
+        for b in content:
+            title, addr, sp = b
+            title = title.strip()
+            #if sp == '/input' and open_input_flad == 0:
+            #    btns.append(None)
+            #    open_input_flad += 1
+            #    continue
             if sp == '/saveuser':
                 callback = 'saveuser;' + '' + ';' + user_status + ';' + addr
-                btns.append(types.InlineKeyboardButton(b, callback_data=callback))
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
                 continue
             if sp == '/edit':
-                if(id in self.user_expected_info):
-                    fieldname = self.data_dstn[self.user_expected_info[id]['source']]
+                if(self.user_cell_position[id] in self.data_dstn):
+                    fieldname = self.data_dstn[self.user_cell_position[id]]
                     content   = self.data_table.getFieldValue(id, fieldname)
                     if content is None:
                         pass
                     else:
-                        callback = 'unch;' + 'Ок' + ';' + user_status + ';' + addr
-                        btns.append(types.InlineKeyboardButton(b, switch_inline_query_current_chat=content))
+                        callback = 'unch;' + 'Ок' + ';' + user_status + ';' + addr #TODO consider if possible to use "user status" token and take out the method to textProcessor since no id and status is needed
+                        btns.append(types.InlineKeyboardButton(title, switch_inline_query_current_chat=content))
                         btns.append(types.InlineKeyboardButton('Ок', callback_data=callback))
                     pass
                 pass
             if sp == '/delete_me':
                 pass
+
+            if sp == '/ucommand':
+                cmd = self.__extract_command(title)
+                btns.append(None)
+                self.user_command[id] = [cmd, addr]
+            if sp == '/tcommand':
+                cmd = self.__extract_command(title)
+                btns.append(None)
+                self.teacher_command[chat_id] = [cmd, addr]
+            if sp == '/tomorrow':
+                callback = 'tomorrow;' + title + ';' + user_status + ';' + addr
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
             if sp == '/back':
-                callback = 'unch;' + b + ';' + user_status + ';' + addr
-                btns.append(types.InlineKeyboardButton(b, callback_data=callback))
-            if sp is None or sp=='':
-                callback = 'chng;' + b + ';' + user_status + ';' + addr
-                btns.append(types.InlineKeyboardButton(b, callback_data=callback))
+                callback = 'unch;' + title + ';' + user_status + ';' + addr
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+            if sp is None or sp == '':
+                callback = 'chng;' + title + ';' + user_status + ';' + addr
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
         return btns
 
     def __check_user(self, id):
-        pupils = self.data_table.getAllPupilColumns(['id','status'])
+        pupils = self.data_table.getAllPupilColumns(['id','status','chat_id'])
         id = str(id)
         if id in str(pupils[0]):
             j = pupils[0].index(id)
-            return {int(id): pupils[1][j]}
+            return {int(id): pupils[1][j]},{int(id): int(pupils[2][j])}
         else:
             return None
 
     def __check_user_info(self, id): #TODO Add checking of fullness of the user info
+        record = self.data_table.getAllFieldValue(id)
+        for h, u in zip(record[2],record[-1]):
+            if int(h)==1:
+                if u=='':
+                    return False
+        ind = record[0].index('chat_id')
+        try:
+            if int(record[-1][ind]) != -1:
+                self.user_chat_id[id] = int(record[-1][ind])
+                return False
+        except: pass
         return True
 
     def __create_user(self, pupil_dict, user_dscr):
@@ -308,7 +829,8 @@ class SurveyBot(telebot.TeleBot):
             else:
                 user_dict[k] = ''
             pass
-        user_dict['status'] = self.user_status[user_dict['id']]
+        user_dict['status' ] = self.user_cell_position[user_dict['id']]
+        user_dict['chat_id'] = -1
         return user_dict
 
     def __invert_datasource_link(self, data_structure):
@@ -319,174 +841,19 @@ class SurveyBot(telebot.TeleBot):
                 self.data_dstn[result.group(1)] = k
             pass
 
-    def __messageParser(self, msg):
-        texts = []
-        text = msg
-        urls = re.findall('https:\S+', msg)
-        for url in urls:
-            text = text.replace(url, '')
-            r = requests.head(url, allow_redirects=True)
-            ctype = r.headers['content-type']
-            texts.append((url,ctype))
-
-        buttons = re.findall("\[\[[^\]]+\]\]", text)
-        next_step = []
-        special = []
-        for i in range(len(buttons)):
-            text = text.replace(buttons[i], '')
-            buttons[i] = buttons[i][2:-2]
-            buttons[i].strip()
-
-        text = text.strip()
-        text = text.replace('\n', '%0A')
-        text = ' '.join(text.split())
-        text = text.replace('%0A', '\n')
-        texts.append([text, 'txt'])
-        for i in range(len(buttons)):
-            b = buttons[i]
-            details = b.split(';')
-            next_step.append(details[1].strip())
-            if len(details) > 2:
-                special.append(details[2])
-            else:
-                special.append(None)
-            buttons[i] = details[0]
-
-        return [texts, buttons, next_step, special]
-
-
 #bot.send_poll(message.chat.id, 'вопрос', options=['1', '2', '3'])
 
+state_f = open('resources/tokens.json', 'r')
+tokens = json.load(state_f)
+state_f.close()
 
 
 logger = telebot.logger
-#telebot.logger.setLevel(logging.DEBUG)
-#id = -1001911551721
-#CHANNEL_NAME = '@tmp_langusto_channel'
-#bot.send_message(id, "Как тебя зовут?")
+
 print("Starting the program")
 
-#bot = telebot.TeleBot("6490762220:AAGvcyX_YvSmeDkYcZw6oDSD0FjK4ayxlpc")
+survey_table = googleSheetTest.GoogleTableReader(tokens['gsheet'])
 
-'''
-chefid   = -1
-pupil_id = -1
-
-
-state_f = None
-state_dict = {}
-state_dict['pupils'] = []
-
-try:
-    state_f = open('teacherbot_statefile.json', 'r')
-    state_dict = json.load(state_f)
-    print("1")
-except:
-    state_f = open('teacherbot_statefile.json', 'w')
-    json.dump(state_dict, state_f)
-
-state_f.close()
-'''
-
-'''
-@bot.message_handler(content_types=['text'])
-def start(message):    
-    if message.text == '/imchief':
-        bot.send_message(message.from_user.id, "Your are cheif, ok");
-        state_dict['chefid'] = message.from_user.id
-        print("New chief_id: " + str(state_dict['chefid']))
-    if message.text == '/reg':
-        bot.send_message(message.from_user.id, "I don't have a chief yet, ask later");
-    if message.text == '/createclass':
-        if not('chefid' in state_dict) or int(state_dict['chefid'])<0:
-            bot.send_message(message.from_user.id, "I don't have a chief yet, ask later");
-        else:
-            state_dict['pupils'].append(message.from_user.id)
-            print("Pupils_id: " + str(state_dict['pupils']))
-            bot.send_message(message.from_user.id, "Ok, I've sent a request")
-            bot.send_message(state_dict['chefid'], "/create_group:" + message.from_user.username)
-            #bot.register_next_step_handler(message, get_name); #следующий шаг – функция get_name
-
-    state_f = open('teacherbot_statefile.json', 'w')
-    json.dump(state_dict, state_f)
-    state_f.close()
-'''
-
-
-
-def get_userstruct(user_dict):
-    pass
-
-def checkuser(uid, user_dict):
-    return False
-    pass
-'''
-@bot.message_handler(content_types=['text'])
-def start(message):
-    user_dict = {}
-    if message.text == '/pupil':
-        user_dict = get_userstruct(user_dict)
-        uid = message.from_user.id
-        if checkuser(uid):
-            pass #process if user is existing
-        else:
-            user_dict['user_id'] = uid
-            if(get_user_info.get_info(message, user_dict)):
-                pass # if it is ok
-            else:
-                pass # user cancel or error
-        pass
-'''
-
-def get_name(message): #получаем фамилию
-    global name
-    name = message.text
-    bot.send_message(message.from_user.id, 'Какая у тебя фамилия?')
-    bot.register_next_step_handler(message, get_surname)
-
-def get_surname(message):
-    global surname
-    surname = message.text
-    bot.send_message(message.from_user.id, 'Сколько тебе лет?')
-    bot.register_next_step_handler(message, get_age)
-
-def get_age(message):
-    global age
-    while age == 0: #проверяем что возраст изменился
-        try:
-             age = int(message.text) #проверяем, что возраст введен корректно
-        except Exception:
-             bot.send_message(message.from_user.id, 'Цифрами, пожалуйста')
-        keyboard = types.InlineKeyboardMarkup() #наша клавиатура
-        key_yes = types.InlineKeyboardButton(text='Да', callback_data='yes') #кнопка «Да»
-        keyboard.add(key_yes) #добавляем кнопку в клавиатуру
-        key_no= types.InlineKeyboardButton(text='Нет', callback_data='no')
-        keyboard.add(key_no)
-        question = 'Тебе '+str(age)+' лет, тебя зовут '+name+' '+surname+'?'
-        bot.send_message(message.from_user.id, text=question, reply_markup=keyboard)
-'''
-@bot.callback_query_handler(func=lambda call: True)
-def callback_worker(call):
-    if call.data == "yes": #call.data это callback_data, которую мы указали при объявлении кнопки
-        pass #код сохранения данных, или их обработки
-        bot.send_message(call.message.chat.id, 'Запомню : )')
-    elif call.data == "no":
-        pass #переспрашиваем
-'''
-
-#bot.send_message(6604084268, "/create_group:" )
-
-#print("My state:\n" + str(state_dict))
-
-survey_table = googleSheetTest.GoogleTableReader('1A_s-2vCoTmf9ElTCPg9inH1FbuwIHp0JbIAPcrCnYdA')
-
-
-survey_bot = SurveyBot("6490762220:AAGvcyX_YvSmeDkYcZw6oDSD0FjK4ayxlpc", survey_table)
+survey_bot = SurveyBot(tokens['bot_token'], survey_table, tokens['p_tocken']) #new testing bot with working shop
 survey_bot.run()
-
-#marquer = types.ReplyKeyboardMarkup(row_width=2, one_time_keyboard=True, resize_keyboard=True)
-#text = ''
-#markupFromMessage(msg1, marquer, [text])
-
-#state_f.close()
 
