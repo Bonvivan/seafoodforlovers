@@ -853,7 +853,7 @@ logger = telebot.logger
 print("Starting the program")
 
 survey_table = googleSheetTest.GoogleTableReader(tokens['gsheet'])
-
 survey_bot = SurveyBot(tokens['bot_token'], survey_table, tokens['p_tocken']) #new testing bot with working shop
+
 survey_bot.run()
 
