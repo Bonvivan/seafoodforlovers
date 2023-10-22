@@ -162,3 +162,5 @@ cython_debug/
 /resources
 *.json
 /pics
+/dist
+/build

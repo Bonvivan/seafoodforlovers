@@ -115,7 +115,7 @@ async def normal_handler(event):
             invite_link = await client(ExportChatInviteRequest(result.chats[0]))
             z = re.match(r'.*link=\'(https:\S+)\'.*', str(invite_link))
             invite_link = z.groups()[0]
-            print('Invite link = ' + str(invite_link))
+            #print('Invite link = ' + str(invite_link))
             txt = '!Это чат для обучения итальянскому от Langusto!\n Он создан спеициально для пользователя ' + '@' + command['args'][-1] + '\n'
             txt += 'Вот другие его участники:\n'
             txt += '@' + command['args'][0] + ' - это трудолюбивый робот, который будет выдaвать тебе задания\n'
@@ -130,6 +130,7 @@ async def normal_handler(event):
         except Exception as err:
             await client(functions.messages.DeleteChatRequest(chat_id=result.chats[0].id))
             print(err)
+    '''
     if command['request'] == cm.COMMANDS.delete_channal:
         try:
             chat_id = command['args'][:-1]
@@ -142,8 +143,8 @@ async def normal_handler(event):
         except Exception as err:
             print('Chat was not deleted')
             print(err)
-
-    print(event.message.to_dict()['message'])
+    '''
+    #print(event.message.to_dict()['message'])
 
     try:
         state_f = open(superbot_state_filepath, 'r')

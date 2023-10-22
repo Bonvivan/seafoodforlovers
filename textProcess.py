@@ -38,7 +38,6 @@ class MSG_TYPE:
 
         return l
 
-
 def parseCommand(msg):
     msg_list = msg.split(';')
     command = {}
@@ -64,10 +63,13 @@ def parseMessage(msg, past_answer=''): #TODO implement a class message, keeping 
         if url:
             url = url.groups()[0]
             url = url.strip()
-            req = requests.get(url)
-            r = req.headers['content-type']
-            r = MSG_TYPE.getType(r)
-            result['content'].append((url, r))
+            try:
+                req = requests.get(url)
+                r = req.headers['content-type']
+                r = MSG_TYPE.getType(r)
+                result['content'].append((url, r))
+            except:
+                result['content'].append((url, 'text/html; charset=UTF-8'))
             #text = text[url_pos + len(url) + 1:]
             continue
 
@@ -78,19 +80,7 @@ def parseMessage(msg, past_answer=''): #TODO implement a class message, keeping 
             txt = txt.replace(buttons[i], '')
             buttons[i] = buttons[i][2:-2]
             buttons[i].strip()
-        '''
-        for url in urls:
-        url_pos = text.find(url)
-        result['content'].append([text[:url_pos], MSG_TYPE.text])
-        req = requests.get(url)
-        r = req.headers['content-type']
-        r = MSG_TYPE.getType(r)
-        t = MSG_TYPE.guessExtension(url)[1]
-        if t is None:
-            t = r
-        result['content'].append((url, t))
-        text = text[url_pos+len(url)+1:]
-        '''
+
         result['content'].append([txt.strip() + past_answer, MSG_TYPE.text])
         for i in range(len(buttons)):
             b = buttons[i]

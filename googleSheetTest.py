@@ -18,6 +18,7 @@ class GoogleTableReader():
     credentials = None
 
     read_counter = 0
+    write_counter = 0
 
     header = None
     pupils_id = None
@@ -46,24 +47,24 @@ class GoogleTableReader():
         def wrapper(self, *args, **kwargs):
             access_count = 0
             r = random.random()
-            if self.read_counter > 10:
-                time.sleep(1+r)
             if self.read_counter > 20:
                 time.sleep(2+r)
+                print('Too many requests 1')
             if self.read_counter > 30:
-                time.sleep(4+r)
+                time.sleep(3+r)
+                print('Too many requests 2')
             if self.read_counter > 40:
-                time.sleep(8+r)
+                time.sleep(4+r)
+                print('Too many requests 3')
             if self.read_counter > 50:
-                print('Too many requests')
-                time.sleep(45+r*5)
-                self.read_counter = 0
+                time.sleep(30+r)
+                print('Too many requests 3')
 
             while self.critical_flag:
                 print('Access is closed')
                 access_count += 1
                 time.sleep(1 + r)
-                if access_count > 10:
+                if access_count > 20:
                     self.critical_flag = False
 
             self.critical_flag = True
@@ -79,10 +80,11 @@ class GoogleTableReader():
     @my_shiny_new_decorator
     def __resetAccessCounter(self):
         print('Access counter, read: ' + str(self.read_counter))
-        self.read_counter = 0
+        self.read_counter  = 0
+        self.write_counter = 0
         self.header = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                           range='pupils' + '!' + 'A1:Z1').execute()['values'][0]
-        threading.Timer(30.0, self.__resetAccessCounter).start()
+        threading.Timer(60.0, self.__resetAccessCounter).start()
         threading.Timer(300.0, self.__reconnect).start()
 
     @my_shiny_new_decorator
@@ -103,8 +105,9 @@ class GoogleTableReader():
     def getFieldValue(self, id, fieldname, key_column='id', sheetName='pupils'):
         print('getFieldValue')
         #self.service = apiclient.discovery.build('sheets', 'v4', http=self.httpAuth)
-        self.read_counter += 1
+
         if self.header is None:
+            self.read_counter += 1
             self.header = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                           range=sheetName + '!' + 'A1:Z1').execute()['values'][0]
         all_keys = self.pupils_id
@@ -129,10 +132,8 @@ class GoogleTableReader():
         print('getAllFieldValue')
         #self.service = apiclient.discovery.build('sheets', 'v4', http=self.httpAuth)
         self.read_counter += 1
-        if self.header is None:
-            self.header = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
-                                                                   range=sheetName + '!' + 'A1:Z1').execute()['values'][0]
-        myheader = self.header
+        myheader = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
+                                                                   range=sheetName + '!' + 'A1:Z4').execute()['values']
 
         all_user_id = self.pupils_id
         if self.pupils_id == None:
@@ -148,14 +149,44 @@ class GoogleTableReader():
         return myheader
 
 
-    #TODO add decorator to prevent overcounting of requests
+    @my_shiny_new_decorator
+    def setFieldValues(self, id, values, fieldnames, key_column='id', sheetName='pupils'):
+        print('setFieldValuessss')
 
+        # print('Before read header!')
+        if self.header is None:
+            self.read_counter += 1
+            self.header = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
+                                                                   range=sheetName + '!' + 'A1:Z1').execute()['values'][0]
 
-    def setFieldValue(self, value, id, fieldname, key_column='id',sheetName='pupils'):
+        all_keys_collumn = self.pupils_id
+        if key_column != 'id':
+            all_keys_collumn = self.getAllPupilColumns([key_column])[0]
+        elif self.pupils_id == None:
+            self.pupils_id = self.getAllPupilColumns([key_column])[0]
+            all_keys_collumn = self.pupils_id
+
+        if not (str(id) in all_keys_collumn):
+            return None
+
+        u_row = str(all_keys_collumn.index(str(id)) + 4 + 1)
+        body  = {'valueInputOption': 'RAW', 'data': []}
+        for fn,v in zip(fieldnames,values):
+            if fn in self.header:
+                j = self.header.index(fn)
+                letter = self.alphabet[j]
+                body['data'].append({'range': sheetName + '!' + letter + u_row, 'values': [[v]]})
+            pass
+        self.write_counter += 1
+        self.service.spreadsheets().values().batchUpdate(spreadsheetId=self.spreadsheetId, body=body).execute()
+
+        return None
+
+    def setFieldValue(self, id, value, fieldname, key_column='id',sheetName='pupils'):
         print('setFieldValue')
-        self.read_counter += 1
         #print('Before read header!')
         if self.header is None:
+            self.read_counter += 1
             self.header = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                                    range=sheetName + '!' + 'A1:Z1').execute()['values'][0]
         #print('Header readen!')
@@ -185,8 +216,9 @@ class GoogleTableReader():
         print('setValue')
         body = {}
         body['values'] = [value]
-        self.read_counter += 1
+
         resp = None
+        self.write_counter += 1
         if value[0] is None or value[0]=='':
             resp = self.service.spreadsheets().values().clear(
                 spreadsheetId=self.spreadsheetId,
@@ -203,6 +235,7 @@ class GoogleTableReader():
     def getPupilStatus(self, id, sheetName='pupils'):
         print('getPupilStatus')
         if self.header is None:
+            self.read_counter += 1
             self.header = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                                    range=sheetName + '!' + 'A1:Z1').execute()['values'][0]
         all_keys = self.pupils_id
@@ -260,8 +293,8 @@ class GoogleTableReader():
         if len(columns)<1:
             return []
 
-        self.read_counter += 1
         if self.header is None:
+            self.read_counter += 1
             self.header = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                                    range=sheetName + '!' + 'A1:Z1').execute()['values'][0]
         columns_ids = []
@@ -280,19 +313,7 @@ class GoogleTableReader():
         for ci in columns_ids:
             res_col = [col[ci] for col in res['values']]
             result.append(res_col)
-        '''
-        result = []
-        for ci in columns_ids:
-            rng = self.alphabet[ci]
-            self.read_counter += 1
-            res = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
-                                                     range=sheetName + '!' + rng + '5:' + rng + '9999').execute()
-            if 'values' in res.keys():
-                res = flatten(res['values'])
-            else:
-                res = []
-            result.append(res)
-        '''
+
         return result
 
     @my_shiny_new_decorator
@@ -330,6 +351,7 @@ class GoogleTableReader():
                 }
             ]
         }
+        self.write_counter += 1
         resp = self.service.spreadsheets().batchUpdate(spreadsheetId = self.spreadsheetId, body=resource).execute()
         self.pupils_id = self.getAllPupilColumns(['id'])[0]
         return resp
@@ -337,7 +359,6 @@ class GoogleTableReader():
     def addPupil(self, pupil_info, sheetName='pupils'):
         print('addPupil')
         #self.service = apiclient.discovery.build('sheets', 'v4', http=self.httpAuth)
-        self.read_counter += 1
 
         ids = self.pupils_id
         if self.pupils_id == None:
@@ -350,8 +371,8 @@ class GoogleTableReader():
         if str(pupil_info['id']) in ids:
             return None
 
-        self.read_counter += 1
         if self.header is None:
+            self.read_counter += 1
             self.header = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                                    range=sheetName + '!' + 'A1:Z1').execute()['values'][0]
         pupil_spreadsheet = {'values':[[]]}
@@ -361,7 +382,7 @@ class GoogleTableReader():
             else:
                 pupil_spreadsheet['values'][0].append('')
 
-        self.read_counter += 1
+        self.write_counter += 1
         resp = self.service.spreadsheets().values().append(
             spreadsheetId=self.spreadsheetId,
             range="pupils!A1",
@@ -371,27 +392,4 @@ class GoogleTableReader():
         self.pupils_id = self.getAllPupilColumns(['id'])[0]
 
         return resp
-
-
-
-# Читаем ключи из файла
-
-
-"""
-spreadsheet = service.spreadsheets().create(body = {
-    'properties': {'title': 'tmp_test_doc', 'locale': 'ru_RU'},
-    'sheets': [{'properties': {'sheetType': 'GRID',
-                               'sheetId': 0,
-                               'title': 'Pupils',
-                               'gridProperties': {'rowCount': 100, 'columnCount': 15}}}]
-}).execute()
-"""
-#spreadsheetId = "1A_s-2vCoTmf9ElTCPg9inH1FbuwIHp0JbIAPcrCnYdA"#spreadsheet['spreadsheetId']
-
-#print('https://docs.google.com/spreadsheets/d/' + spreadsheetId)
-
-
-#driveService = apiclient.discovery.build('drive', 'v3', http = httpAuth) # Выбираем работу с Google Drive и 3 версию API
-
-
 
