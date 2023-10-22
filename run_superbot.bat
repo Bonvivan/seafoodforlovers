@@ -1,4 +1,4 @@
 :loop
 timeout 5
-python app_test.py
+C:\Python\Python39\python.exe app_test.py
 goto loop

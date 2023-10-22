@@ -71,9 +71,10 @@ class GoogleTableReader():
             try:
                 res = function_to_decorate(self, *args, **kwargs)
             except Exception as err:
-                print('Error in google sheet access: ' + err)
                 self.critical_flag = False
-            self.critical_flag=False
+                print('Error in google sheet access: ' + err)
+
+            self.critical_flag = False
             return res
         return wrapper
 

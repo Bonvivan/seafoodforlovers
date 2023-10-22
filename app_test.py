@@ -17,25 +17,30 @@ import textProcess as tp
 import evalTime
 
 
-api_id = 27619730
-api_hash = 'cca9443429ddb73be66dd446ddfbb2ec'
+api_id = 28814841
+api_hash = 'aab0023515492e361473e53644c7413b'
 
-client = TelegramClient('roro_trial_session', api_id, api_hash, system_version="4.16.30-vxCUSTOM", device_model="MyHomeServer", app_version="myPythonApp")
+client = TelegramClient('MargoSuperSession', api_id, api_hash, system_version="4.16.30-vxCUSTOM", device_model="MyHomeServer", app_version="myPythonApp")
 
 superbot_state_filepath = 'resources/superbot_state.json'
 superbot_state = {'tmp_chat_id':[]}
 
 def decodeEvent(event):
+
     event = str(event)
     z = re.match('.*user_id=(\d+).*', event)
-    uid = int(z.groups()[0])
-    z = re.match('.*chat_id=(\d+).*', event)
-    cid = int(z.groups()[0])
-    z = re.match('.*date=(datetime.datetime\(.+tzinfo=\S+\)),.*', event)
-    time = evalTime.evaltime(z.groups()[0])
-    z = re.match('.*action=(\w+)\(inviter_id=(\d+)\).*', event)
-    action = z.groups()[0]
-    inviter_id = z.groups()[1]
+    try:
+        uid = int(z.groups()[0])
+        z = re.match('.*chat_id=(\d+).*', event)
+        cid = int(z.groups()[0])
+        z = re.match('.*date=(datetime.datetime\(.+tzinfo=\S+\)),.*', event)
+        time = evalTime.evaltime(z.groups()[0])
+        z = re.match('.*action=(\w+)\(inviter_id=(\d+)\).*', event)
+        action = z.groups()[0]
+        inviter_id = z.groups()[1]
+    except:
+        print('Error in event decoding: ' + str(event))
+        return None
     return {'user_id': uid, 'chat_id': cid, 'time': time, 'action': action, 'inviter_id': inviter_id}
 
 
@@ -51,7 +56,7 @@ async def channel_inspector():
                 if isinstance(ch['time'], str):
                     ch['time'] = datetime.fromisoformat(ch['time'])
                     pass
-                if ch['time'] + dt.timedelta(minutes=1) < datetime.now(dt.UTC):
+                if ch['time'] + dt.timedelta(minutes=1) < datetime.utcnow():
                     try:
                         await client(functions.messages.DeleteChatRequest(chat_id=ch['id']))
                     except:
@@ -92,6 +97,9 @@ async def normal_handler(event):
         superbot_state = tp.correct_time(superbot_state)
 
         event_dict = decodeEvent(event) # reading of the event string to create a dictionary
+
+        if event_dict==None:
+            return None
 
         for ch in superbot_state['tmp_chat_id']:
             if ch['id']==event_dict['chat_id']:
