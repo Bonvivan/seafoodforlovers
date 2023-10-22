@@ -206,6 +206,7 @@ class SurveyBot(telebot.TeleBot):
                 self.data_table.critical_flag = False
                 self.send_message(uid,
                                   "Что-то пошло не так. Наберите /call чтоб сообщить об этом преподавателю")
+                print('new_chat_event: ' + str(err))
             pass
 
         @self.message_handler(
@@ -218,7 +219,8 @@ class SurveyBot(telebot.TeleBot):
                 id_u = data_table.getAllPupilColumns(['id', 'username'])
                 _id = id_u[0][id_u[1].index(cmd['args'][0])]
                 self.send_message(_id, cmd['args'][1])
-            except:
+            except Exception as err:
+                print('Err in tunnel_msg: ' + str(err))
                 pass
 
         @self.message_handler(commands=['imyourchief'])
@@ -294,7 +296,8 @@ class SurveyBot(telebot.TeleBot):
             call_chat_id, call_msg_id, when = call_msg.split(';')
             try:
                 self.edit_message_text('Запрос снят', chat_id=int(call_chat_id), message_id=int(call_msg_id))
-            except:
+            except Exception as err:
+                print('edit_message_text(Запрос снят' + str(err))
                 pass
             self.data_table.setFieldValue(cid, None, 'extra_call', key_column='chat_id')
 
@@ -443,15 +446,17 @@ class SurveyBot(telebot.TeleBot):
             try:
                 pupil_info = self.__create_user(self.survey_dict,
                                                 callback_query.from_user)  # TODO change to save next state, not current
-            except:
+            except Exception as err:
                 self.data_table.critical_flag = False
+                print("__create_user: " + str(err))
                 return None
 
             self.data_table.addPupil(pupil_info)
             callback_query.message.from_user.id = callback_query.from_user.id
             try:
                 self.goahead(callback_query.message, *callback_query.data.split(';')[2:])
-            except:
+            except Exception as err:
+                print("goahead: " + str(err))
                 pass
 
         @self.callback_query_handler(func=lambda c: c.data.startswith('unch'))
@@ -466,7 +471,8 @@ class SurveyBot(telebot.TeleBot):
             callback_query.message.text = callback_query.data.split(';')[1]
             try:
                 self.goahead(callback_query.message, *callback_query.data.split(';')[2:])
-            except:
+            except Exception as err:
+                print('self.goahead(callback_query.message, *callback_query.data.split... ' + str(err))
                 pass
 
         @self.callback_query_handler(func=lambda c: c.data.startswith('chng'))
@@ -509,7 +515,8 @@ class SurveyBot(telebot.TeleBot):
 
                 res = function_to_decorate(*args)
 
-            except:
+            except Exception as err:
+                print(err)
                 res = None
             self.now_processing_id = -1
             return res
@@ -542,7 +549,8 @@ class SurveyBot(telebot.TeleBot):
                     self.send_audio(_id, m[0], reply_markup=mrk)
                 elif mtype == tp.MSG_TYPE.audionote:
                     self.send_voice(_id, m[0])
-            except:
+            except Exception as err:
+                print('Err in msg sending: ' + str(err))
                 self.send_message(_id, m[0], reply_markup=mrk)
         pass
 
@@ -570,7 +578,8 @@ class SurveyBot(telebot.TeleBot):
             try:
                 sch_data = schedule[i].split(';')
                 self.schedule[ids[i]] = {'time': datetime.fromisoformat(sch_data[0]), 'cell': sch_data[1]}
-            except:
+            except Exception as err:
+                print('Err in time decoding: init_state:' + str(err))
                 pass
 
         for uid in ids:
@@ -773,7 +782,7 @@ class SurveyBot(telebot.TeleBot):
         try:
             self.__savestatus(uid, self.user_cell_position[uid])  # saving status (cell id where the user is)
         except Exception as err:
-            print(err)
+            print('Errr in __savestatus: ' + str(err))
         self.say_hello(uid, chat_id)  # sending a reply (content of the message froma cell)
         pass
 
@@ -860,8 +869,9 @@ class SurveyBot(telebot.TeleBot):
                     self.send_audio(_id, m[0], reply_markup=mrk)
                 elif mtype == tp.MSG_TYPE.audionote:
                     self.send_voice(_id, m[0])
-            except:
+            except Exception as err:
                 self.send_message(_id, m[0], reply_markup=mrk)
+                print('Err in sayhello: ' + err)
         pass
 
     def create_lesson_chat(self, pupil_user):
