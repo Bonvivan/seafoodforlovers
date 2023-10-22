@@ -15,12 +15,17 @@ import datetime as dt
 from  datetime import datetime, date
 import textProcess as tp
 import evalTime
-
-
+#Margo
+'''
 api_id = 28814841
 api_hash = 'aab0023515492e361473e53644c7413b'
+'''
 
-client = TelegramClient('MargoSuperSession', api_id, api_hash, system_version="4.16.30-vxCUSTOM", device_model="MyHomeServer", app_version="myPythonApp")
+api_id = 27619730
+api_hash = 'cca9443429ddb73be66dd446ddfbb2ec'
+
+#client = TelegramClient('MargoSuperSession', api_id, api_hash, system_version="4.16.30-vxCUSTOM", device_model="MyHomeServer", app_version="myPythonApp")
+client = TelegramClient('MySuperSession', api_id, api_hash, system_version="4.16.30-vxCUSTOM", device_model="MyHomeServer", app_version="myPythonApp")
 
 superbot_state_filepath = 'resources/superbot_state.json'
 superbot_state = {'tmp_chat_id':[]}
