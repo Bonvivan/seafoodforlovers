@@ -45,13 +45,7 @@ class SurveyBot(telebot.TeleBot):
 
     initialisation = False
 
-    def send_typing_action(func):
-        def command_func(update, context, *args, **kwargs):
-            context.bot.send_chat_action(chat_id=update.effective_message.chat_id, action=ChatAction.TYPING)
-            return func(update, context, *args, **kwargs)
-
-        return command_func
-
+   
     def __init__(self, bot_token, data_table, pay_tocken):
         super().__init__(bot_token)
         self.initialisation = True
@@ -697,20 +691,27 @@ class SurveyBot(telebot.TeleBot):
         if cmd != self.teacher_command[chat_id][0]:
             return False
 
-        addr[0] = self.teacher_command.pop(chat_id)[1]
-        if cmd == 'checked':
-            if tid == int(self.bot_state['chefid']):
-                call_msg = self.data_table.getFieldValue(chat_id, 'call_message_id', key_column='chat_id')
-                call_chat_id, call_msg_id, when = call_msg.split(';')
-                print('!!!')
-                try:
-                    self.edit_message_text('Урок проверен', chat_id=int(call_chat_id), message_id=int(call_msg_id))
-                except:
-                    pass
-                self.data_table.setFieldValue(chat_id, None, 'call_message_id', key_column='chat_id')
-                print('!!!')
-            else:
-                return False
+        t_cmd = self.teacher_command.pop(chat_id)
+        addr[0] = t_cmd[1]
+
+        try:
+            if cmd == 'checked':
+                if tid == int(self.bot_state['chefid']):
+                    call_msg = self.data_table.getFieldValue(chat_id, 'call_message_id', key_column='chat_id')
+                    if not(call_msg is None):
+                        call_chat_id, call_msg_id, when = call_msg.split(';')
+                        try:
+                            self.edit_message_text('Урок проверен', chat_id=int(call_chat_id), message_id=int(call_msg_id))
+                        except:
+                            pass
+                    self.data_table.setFieldValue(chat_id, None, 'call_message_id', key_column='chat_id')
+
+                else:
+                    self.teacher_command[chat_id] = t_cmd
+                    return False
+        except:
+            self.teacher_command[chat_id] = t_cmd
+            return False
 
         return True
 
