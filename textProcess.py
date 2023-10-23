@@ -52,6 +52,31 @@ def cleanMessage(msg, username_template='\S+'):
         msg = msg.replace(username, '')
     msg = msg.strip()
     return msg
+
+def parseMessageFast(msg, past_answer=''): #TODO implement a class message, keeping info like results here, methods to add buttons and msges to markup, sending of msg, etc.
+    result = {'content': [], 'buttons': []}
+    text = msg
+    text = text.split('--new-message--')
+
+    for txt in text:
+        txt = txt.strip()
+
+        buttons = re.findall("\[\[[^\]]+\]\]", txt)
+
+        for i in range(len(buttons)):
+            txt = txt.replace(buttons[i], '')
+            buttons[i] = buttons[i][2:-2]
+            buttons[i].strip()
+
+        result['content'].append([txt.strip() + past_answer, MSG_TYPE.text])
+        for i in range(len(buttons)):
+            b = buttons[i]
+            details = b.split(';')
+            details.append(None)
+            result['buttons'].append([details[0],details[1].strip(),details[2]])
+
+    return result
+
 def parseMessage(msg, past_answer=''): #TODO implement a class message, keeping info like results here, methods to add buttons and msges to markup, sending of msg, etc.
     result = {'content': [], 'buttons': []}
     text = msg

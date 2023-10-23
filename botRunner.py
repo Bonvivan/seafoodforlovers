@@ -10,6 +10,8 @@ import commands
 import textProcess as tp
 import threading
 from random import randrange, uniform
+import sys
+import os
 
 import googleSheetTest
 import json
@@ -211,14 +213,18 @@ class SurveyBot(telebot.TeleBot):
 
         @self.message_handler(
             func=lambda m: tp.MSG_TYPE.compare('/tunnelmsg', m.text) == len('/tunnelmsg'))  # TODO: move to commands
-        @self.single_user_decorator
+    #    @self.single_user_decorator
         def tunnel_msg(message):
             print('tunnel_msg')
             try:
                 cmd = tp.parseCommand(message.text)
+                print('Parsing')
                 id_u = data_table.getAllPupilColumns(['id', 'username'])
+                print('User id')
                 _id = id_u[0][id_u[1].index(cmd['args'][0])]
+                print('Chat id')
                 self.send_message(_id, cmd['args'][1])
+                print('MSG to user')
             except Exception as err:
                 print('Err in tunnel_msg: ' + str(err))
                 pass
@@ -241,9 +247,9 @@ class SurveyBot(telebot.TeleBot):
         @self.single_user_decorator
         def start_command(message):
             print('start_command')
+            self.data_table.refresh()
             user = self.__check_user(message.from_user.id)
             if (user == None):
-
                 uid = message.from_user.id
                 self.user_cell_position.pop(uid,None)
                 self.user_chat_id.pop(uid, None)
@@ -343,8 +349,7 @@ class SurveyBot(telebot.TeleBot):
                 self.send_message(cid, "Отправлен запрос на проверку " +
                                   str(when.date()) + ' в ' +
                                   str(when.hour) + ':' + str(when.minute) + 'GMT;')
-            else:
-                wait_command = True
+
             if 'extra_call' in user_status.keys() and user_status['extra_call'] != '':
                 r1, r2, when = user_status['extra_call'].split(';')
                 when = datetime.fromisoformat(when)
@@ -365,11 +370,10 @@ class SurveyBot(telebot.TeleBot):
             txt += "\n/start - повторно выслать последнее сообщение и в случае сбоя;"
             txt += "\n/call  - уведомить преподавателя о вопросе или сбое."
 
-            if wait_command:
+            if uid in self.user_command:
                 c = self.user_command[uid]
                 txt += '\n//' + str(c[0]) + ' - ' + commands.COMMANDS.soft_commands[str(c[0])]
             self.send_message(cid, txt)
-
         pass
 
         @self.message_handler(content_types=['text'])
@@ -419,7 +423,7 @@ class SurveyBot(telebot.TeleBot):
             _today = datetime(datetime.today().year, datetime.today().month, datetime.today().day)
             rand_m = randrange(0, 30)
             _tomorrow = _today + dt.timedelta(days=1) + dt.timedelta(hours=4) + dt.timedelta(minutes=rand_m)
-            _tomorrow_test = datetime.utcnow() + dt.timedelta(minutes=5)
+            _tomorrow_test = datetime.utcnow() + dt.timedelta(minutes=1)
             # TODO: change  tomorrow_test to tomorrow
             event_stamp = str(_tomorrow_test.isoformat()) + ';' + callback_query.data.split(';')[-1]
             self.data_table.setFieldValue(uid, event_stamp, 'delayed_event')
@@ -544,7 +548,11 @@ class SurveyBot(telebot.TeleBot):
                 elif mtype == tp.MSG_TYPE.image:
                     self.send_photo(_id, m[0], reply_markup=mrk)
                 elif mtype == tp.MSG_TYPE.video:
-                    self.send_video(_id, m[0], reply_markup=mrk)
+                    try:
+                        self.send_video(_id, m[0], reply_markup=mrk)
+                    except:
+                        m[0] = m[0].replace('https://dl.dropboxusercontent.com/','https://www.dropbox.com/')
+                        self.send_message(_id, m[0])
                 elif mtype == tp.MSG_TYPE.audio:
                     self.send_audio(_id, m[0], reply_markup=mrk)
                 elif mtype == tp.MSG_TYPE.audionote:
@@ -583,9 +591,8 @@ class SurveyBot(telebot.TeleBot):
                 pass
 
         for uid in ids:
-            if ids[i]!=_id and _id!=-1:
-                continue
-            self.read_from_cell(uid)
+            if _id == -1 or uid == _id:
+                self.read_from_cell(uid)
 
     def checkSchedule(self):
         threading.Timer(300.0, self.checkSchedule).start()
@@ -807,7 +814,7 @@ class SurveyBot(telebot.TeleBot):
             print(err)
             return None
 
-        content = tp.parseMessage(msg)
+        content = tp.parseMessageFast(msg)
         self.__createKeyFromContent(uid, _id, content['buttons'])
         pass
 
@@ -864,14 +871,18 @@ class SurveyBot(telebot.TeleBot):
                 elif mtype == tp.MSG_TYPE.image:
                     self.send_photo(_id, m[0], reply_markup=mrk)
                 elif mtype == tp.MSG_TYPE.video:
-                    self.send_video(_id, m[0], reply_markup=mrk)
+                    try:
+                        self.send_video(_id, m[0], reply_markup=mrk)
+                    except:
+                        corr_url = m[0].replace('https://dl.dropboxusercontent.com/','https://www.dropbox.com/')
+                        self.send_message(_id, corr_url)
                 elif mtype == tp.MSG_TYPE.audio:
                     self.send_audio(_id, m[0], reply_markup=mrk)
                 elif mtype == tp.MSG_TYPE.audionote:
                     self.send_voice(_id, m[0])
             except Exception as err:
                 self.send_message(_id, m[0], reply_markup=mrk)
-                print('Err in sayhello: ' + err)
+                print('Err in sayhello: ' + str(err))
         pass
 
     def create_lesson_chat(self, pupil_user):
@@ -1007,7 +1018,11 @@ tokens = json.load(state_f)
 state_f.close()
 
 survey_table = googleSheetTest.GoogleTableReader(tokens['gsheet'])
-survey_bot = SurveyBot(tokens['bot_token'], survey_table, tokens['p_tocken'])  # new testing bot with working shop
 
-survey_bot.run()
+try:
+    survey_bot = SurveyBot(tokens['bot_token'], survey_table, tokens['p_tocken'])  # new testing bot with working shop
+    survey_bot.run()
+except Exception as err:
+    print('General error, rebooting ' + str(err))
+    os.abort()
 

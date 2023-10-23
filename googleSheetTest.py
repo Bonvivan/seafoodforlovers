@@ -41,6 +41,7 @@ class GoogleTableReader():
         print('Created reader for:' + 'https://docs.google.com/spreadsheets/d/' + spreadsheetId)
 
         threading.Timer(60.0, self.__resetAccessCounter).start()
+        threading.Timer(313.0, self.__reconnect).start()
         pass
 
     def my_shiny_new_decorator(function_to_decorate):
@@ -61,9 +62,9 @@ class GoogleTableReader():
                 print('Too many requests 3')
 
             while self.critical_flag:
-                print('Access is closed')
                 access_count += 1
                 time.sleep(1 + r)
+                print('Access is closed, wait for ' + str(1+r) + ' count = ' + str(access_count))
                 if access_count > 20:
                     self.critical_flag = False
 
@@ -72,7 +73,7 @@ class GoogleTableReader():
                 res = function_to_decorate(self, *args, **kwargs)
             except Exception as err:
                 self.critical_flag = False
-                print('Error in google sheet access: ' + err)
+                print('Error in google sheet access: ' + str(err))
 
             self.critical_flag = False
             return res
@@ -80,21 +81,24 @@ class GoogleTableReader():
 
     @my_shiny_new_decorator
     def __resetAccessCounter(self):
+        threading.Timer(60.0, self.__resetAccessCounter).start()
         print('Access counter, read: ' + str(self.read_counter))
         self.read_counter  = 0
         self.write_counter = 0
         self.header = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                           range='pupils' + '!' + 'A1:Z1').execute()['values'][0]
-        threading.Timer(60.0, self.__resetAccessCounter).start()
-        threading.Timer(300.0, self.__reconnect).start()
+
 
     @my_shiny_new_decorator
     def __reconnect(self):
+        threading.Timer(300.0, self.__reconnect).start()
         self.httpAuth = self.credentials.authorize(httplib2.Http())  # Авторизуемся в системе
         self.service = apiclient.discovery.build('sheets', 'v4',
                                                  http=self.httpAuth)  # Выбираем работу с таблицами и 4 версию API
-        threading.Timer(300.0, self.__reconnect).start()
 
+
+    def refresh(self):
+        self.pupils_id = self.getAllPupilColumns(['id'])[0]
     def giveAccess(self, email, role='writer'):
         access = self.service.permissions().create(
             fileId=self.spreadsheetId,
@@ -247,7 +251,7 @@ class GoogleTableReader():
         if not (str(id) in all_keys):
             return None
         u_row = str(all_keys.index(str(id)) + 4 + 1)
-        result = self.getValue(sheetName, 'A' + u_row + ':' + 'ZZ' + u_row)[0]
+        result = self.getValue(sheetName, 'A' + u_row + ':' + 'Z' + u_row)[0]
         pupil_info = {}
         for k, r in zip(self.header, result):
             j = self.header.index(k)
@@ -258,7 +262,7 @@ class GoogleTableReader():
     def getAllValue(self, sheetName):
         print('getAllValue')
         # self.service = apiclient.discovery.build('sheets', 'v4', http=self.httpAuth)
-        rng = sheetName + '!' + 'A1:Z9999'
+        rng = sheetName + '!' + 'A1:Z999'
         self.read_counter += 1
         results = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId, range=rng).execute()
         if not ('values' in results):
@@ -303,8 +307,13 @@ class GoogleTableReader():
             columns_ids.append(self.header.index(c))
 
         self.read_counter += 1
-        res = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
-                                                       range=sheetName + '!' + 'A5:'  + 'ZZ9999').execute()
+        res = None
+        try:
+            res = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
+                                                       range=sheetName + '!' + 'A5:'  + 'Z999').execute()
+        except Exception as err:
+            print('!!!!!!!!!!!!This is you exception')
+            pass
 
         result = []
         if not 'values' in res:

@@ -15,6 +15,7 @@ import datetime as dt
 from  datetime import datetime, date
 import textProcess as tp
 import evalTime
+import os
 #Margo
 '''
 api_id = 28814841
@@ -81,7 +82,7 @@ async def channel_inspector():
                 continue
             pass
     except Exception as err:
-        print(err)
+        print('General error in message read: ' + str(err))
 
     state_f = open(superbot_state_filepath, 'w')
     json.dump(superbot_state, state_f, indent=4)
@@ -115,8 +116,10 @@ async def normal_handler(event):
 @client.on(events.NewMessage(incoming=True))
 async def normal_handler(event):
     global superbot_state
+    print('New messega resiceved ' )
     result = None
     msg_txt = event.message.to_dict()['message']
+    print('New messega resiceved: ' + str(msg_txt))
     command = tp.parseCommand(msg_txt)
     if command['request']==cm.COMMANDS.create_a_channal:
         try:
@@ -133,7 +136,7 @@ async def normal_handler(event):
             txt += 'Вот другие его участники:\n'
             txt += '@' + command['args'][0] + ' - это трудолюбивый робот, который будет выдaвать тебе задания\n'
             txt += '@' + command['args'][1] + ' - это я, Марго, твой преподаватель. Я буду проверять задания и помогать в обучении\n'
-            await client.send_message(result.chats[0].id, txt) # sending message to a chat
+            #await client.send_message(result.chats[0].id, txt) # sending message to a chat
             txt = '/tunnelmsg;' + str(pupil) + ';Это приглашение в чат для обучения итальянскому. Переходи в группу и начни свой первый урок! \n\n<b>Этот чат можете удалить, он больше не пригодится.</b>\n\n' + invite_link
             await client.send_message(botuser, txt, parse_mode='html') # sending a link to a user.
             superbot_state['tmp_chat_id'].append({'id': result.chats[0].id, 'pid': pupil, 'botuser': botuser, 'time': result.chats[0].date.isoformat()})
@@ -171,5 +174,8 @@ async def normal_handler(event):
 client.start()
 for dialog in client.iter_dialogs():
     print('Dialog entity: ' + str(dialog.entity.id))
-
-client.run_until_disconnected()
+try:
+    client.run_until_disconnected()
+except Exception as err:
+    print('General error, rebooting ' + str(err))
+    os.abort()
