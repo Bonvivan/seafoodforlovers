@@ -49,7 +49,7 @@ class SurveyBot(telebot.TeleBot):
 
     initialisation = False
 
-   
+
     def __init__(self, bot_token, data_table, pay_tocken):
         super().__init__(bot_token)
         self.initialisation = True
