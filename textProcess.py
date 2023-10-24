@@ -2,7 +2,9 @@ import json
 import requests
 import re
 from  datetime import datetime, date
-
+#-------------------------------------------------------#
+#----created by Andrey Svitenkov, Undresaid, 10.2023----#
+#-------------------------------------------------------#
 class MSG_TYPE:
     text = 'text'
     image = 'image'
@@ -97,6 +99,7 @@ def parseMessage(msg, past_answer=''): #TODO implement a class message, keeping 
                 result['content'].append((url, 'text/html; charset=UTF-8'))
             #text = text[url_pos + len(url) + 1:]
             continue
+
 
         txt = txt.strip()
         buttons = re.findall("\[\[[^\]]+\]\]", txt)

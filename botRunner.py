@@ -16,6 +16,10 @@ import os
 import googleSheetTest
 import json
 
+#-------------------------------------------------------#
+#----created by Andrey Svitenkov, Undresaid, 10.2023----#
+#-------------------------------------------------------#
+
 '''
 @bot.channel_post_handler(content_types=["text", "audio", "photo", "video"])
 def greeting(message):
@@ -38,7 +42,7 @@ class SurveyBot(telebot.TeleBot):
 
     now_processing_id = -1
 
-    PRICE_1 = types.LabeledPrice(label="3 месяца обучения", amount=1010 * 100)  # в копейках (руб)
+    PRICE_1 = types.LabeledPrice(label="3 месяца обучения", amount=2010 * 100)  # в копейках (руб)
     PRICE_2 = types.LabeledPrice(label="6 месяцев обучения", amount=92000 * 100)  # в копейках (руб)
     PRICE_3 = types.LabeledPrice(label="12 месяцев обучения", amount=179000 * 100)  # в копейках (руб)
     PAYMENT_TOCKEN = ''
@@ -73,68 +77,6 @@ class SurveyBot(telebot.TeleBot):
 
         self.initialisation = False
 
-        @self.message_handler(commands=['trial_chat'])
-        def try_command(message):
-            uid = message.from_user.id
-            self.create_chat_invite_link(-4070680015)
-            pass
-
-        @self.message_handler(commands=['trial_1'])
-        def try_command(message):
-            print('try_command')
-            self.send_invoice(message.chat.id,
-                              title="3 месяца обучения",
-                              description="Любой уровень на ваш выбор. Идеально подойдет тем, кому нужно говорить уже вчера, нет системных знаний и хочется почувствовать прогресс в обучении.",
-                              provider_token=self.PAYMENT_TOCKEN,
-                              currency="rub",
-                              is_flexible=False,
-                              prices=[self.PRICE_1],
-                              start_parameter="one-month-subscription",
-                              invoice_payload="test-invoice-payload",
-                              photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
-                              photo_height=478,
-                              photo_width=512,
-                              photo_size=512)
-
-            pass
-
-        @self.message_handler(commands=['trial_2'])
-        def try_command(message):
-            print('try_command')
-            self.send_invoice(message.chat.id,
-                              title="6 месяцев обучения",
-                              description="Любые два уровня на ваш выбор. Можно начать с нуля или продолжить обучение. Мощное погружение в язык со значительными результатами.",
-                              provider_token=self.PAYMENT_TOCKEN,
-                              currency="rub",
-                              is_flexible=False,
-                              prices=[self.PRICE_2],
-                              start_parameter="one-month-subscription",
-                              invoice_payload="test-invoice-payload",
-                              photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
-                              photo_height=478,
-                              photo_width=512,
-                              photo_size=512)
-
-            pass
-
-        @self.message_handler(commands=['trial_3'])
-        def try_command(message):
-            print('try_command')
-            self.send_invoice(message.chat.id,
-                              title="12 месев обучения",
-                              description="Полный курс обучения. С нуля и до уверенного владения итальянским. Через год можно покупать билеты и уезжать в Италию!",
-                              provider_token=self.PAYMENT_TOCKEN,
-                              currency="rub",
-                              is_flexible=False,
-                              prices=[self.PRICE_3],
-                              start_parameter="one-month-subscription",
-                              invoice_payload="test-invoice-payload",
-                              photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
-                              photo_height=478,
-                              photo_width=512,
-                              photo_size=512)
-
-            pass
 
         # pre checkout  (must be answered in 10 seconds)
         @self.pre_checkout_query_handler(lambda query: True)
@@ -146,6 +88,25 @@ class SurveyBot(telebot.TeleBot):
         def successful_payment(message: types.Message):
             print("SUCCESSFUL PAYMENT:")
             payment_info = message.successful_payment
+            cid = self.user_chat_id[message.from_user.id]
+            try:
+                link = self.create_chat_invite_link(int(cid)).invite_link
+                self.send_message(self.bot_state['chefid'], '!!!ОПЛАТА В ЧАТЕ, ГУЛЯЙ РВАНИНА!!!: \n' + link)
+            except:
+                self.send_message(self.bot_state['chefid'], '!!!' + str(message.from_user.username) + ' ОПЛАТИЛ КУРС, ПРОВЕРЬ ТАБЛИЦУ!!!: \n')
+            uid = message.from_user.id
+            if message.successful_payment.invoice_payload=='mounth3':
+                self.data_table.setFieldValues(uid, ['0',str(message.successful_payment), str(datetime.utcnow().isoformat()), 90],
+                                               ['score','payment_info', 'payment_date', 'period'])
+            if message.successful_payment.invoice_payload=='mounth6':
+                self.data_table.setFieldValues(uid, ['0',str(message.successful_payment), str(datetime.utcnow().isoformat()), 180],
+                                               ['score','payment_info', 'payment_date', 'period'])
+            if message.successful_payment.invoice_payload=='mounth12':
+                self.data_table.setFieldValues(uid, ['0',str(message.successful_payment), str(datetime.utcnow().isoformat()), 360],
+                                               ['score','payment_info', 'payment_date', 'period'])
+            self.user_cell_position[uid] = 'teacher!A6'
+            self.__savestatus(uid,self.user_cell_position[uid])
+            self.say_hello(uid, cid)
             print(payment_info)
 
         @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('/cheat42', m.text) == len('/cheat42'))
@@ -286,7 +247,7 @@ class SurveyBot(telebot.TeleBot):
 
         @self.message_handler(commands=['solved'])
         @self.single_user_decorator
-        def status_command(message):
+        def solved_command(message):
             tid = message.from_user.id
             cid = message.chat.id
             if tid != int(self.bot_state['chefid']):
@@ -305,7 +266,7 @@ class SurveyBot(telebot.TeleBot):
 
         @self.message_handler(commands=['delete'])
         @self.single_user_decorator
-        def status_command(message):
+        def delete_command(message):
             uid = message.from_user.id
             cid = message.chat.id
             if (uid in self.user_chat_id) and self.user_chat_id[uid] != -1:
@@ -327,8 +288,7 @@ class SurveyBot(telebot.TeleBot):
                 return None
             elif int(user_status['chat_id']) == -1:
                 self.send_message(cid, "Вы проходите опрос.")
-                self.send_message(cid, "\n/start чтоб перейти к последнему вопросу;" +
-                                  "\n/delete чтоб удалить свои данные и закончить.")
+                self.send_message(cid, "\n/start чтоб перейти к последнему вопросу;")
                 return None
             txt = ''
             chat_id = int(self.user_chat_id[uid])
@@ -361,6 +321,13 @@ class SurveyBot(telebot.TeleBot):
                 score = int(user_status['score'])
                 self.send_message(cid, "На вашем счету: " + str(score) + ' баллов.')
 
+            if 'payment_date' in user_status.keys() and user_status['payment_date'] != '':
+                when = datetime.fromisoformat(user_status['payment_date'])
+                period = user_status['period']
+                self.send_message(cid, "Вы оплатили курс на " + str(period) + 'дней;' + '\nОплата произведена: ' +
+                                  str(when.date()))
+
+
             txt += "\n/start - повторно выслать последнее сообщение и в случае сбоя;"
             txt += "\n/call  - уведомить преподавателя о вопросе или сбое."
 
@@ -377,7 +344,24 @@ class SurveyBot(telebot.TeleBot):
 
         pass
 
-        @self.callback_query_handler(func=lambda c: c.data.startswith('to_lsn'))  # TODO: move to commands
+        @self.callback_query_handler(func=lambda c: c.data.startswith('pay'))
+        @self.single_user_decorator
+        def pay_hendler(callback_query: types.CallbackQuery):
+            self.answer_callback_query(callback_query.id)
+            msg = callback_query.data
+            cmd = tp.parseCommand(msg)
+            dptr = cmd['args'][0]
+            addr = cmd['args'][1]
+            subscr_id = cmd['args'][2]
+            try:
+                self.edit_message_reply_markup(callback_query.message.chat.id, message_id=callback_query.message.message_id - (
+                        callback_query.message.from_user.username != self.user.username), reply_markup='')
+            except:
+                pass
+            self.pay_command(callback_query.message.chat.id, dptr, addr, int(subscr_id))
+            pass
+
+        @self.callback_query_handler(func=lambda c: c.data.startswith('to_lsn'))
         @self.single_user_decorator
         def lesson_command(callback_query: types.CallbackQuery):
             message = callback_query.message
@@ -867,7 +851,12 @@ class SurveyBot(telebot.TeleBot):
             print('Sending part of message')
             try:
                 if mtype == tp.MSG_TYPE.text:
-                    self.send_message(_id, m[0], reply_markup=mrk,
+                    corr_m = m[0]
+                    field = re.findall('\?\?\?(\S+)\?\?\?', corr_m)
+                    for f in field:
+                        val = self.data_table.getFieldValue(uid, f.strip())
+                        corr_m = corr_m.replace('???' + f + '???', str(val))
+                    self.send_message(_id, corr_m, reply_markup=mrk,
                                       parse_mode='html')  # TODO define abstract class MSG sending an apppropriate type of msg (method send())
                 elif mtype == tp.MSG_TYPE.image:
                     self.send_photo(_id, m[0], reply_markup=mrk)
@@ -892,6 +881,74 @@ class SurveyBot(telebot.TeleBot):
         self.send_message(self.bot_state['chefid'], txt)
         pass
 
+    def pay_command(self, chat_id, dptr, addr, subscribe_id):
+        print('pay_command')
+
+        _markup = types.InlineKeyboardMarkup(row_width=2)
+        callback = 'unch;' + 'Назад' + ';' + dptr + ';' + dptr
+
+        discont = self.data_table.getFieldValue(chat_id, 'score', key_column='chat_id')
+        discont = int(discont)*100
+
+        if subscribe_id==1:
+            special_price = self.PRICE_1
+            special_price.amount = special_price.amount - discont*10
+            _markup.add(types.InlineKeyboardButton('Оплатить ' + str(int(special_price.amount/100)) + ' руб', pay=True))
+            _markup.add(types.InlineKeyboardButton('Назад', callback_data=callback))
+            self.send_invoice(chat_id,
+                          title="3 месяца обучения",
+                          description="Любой уровень на ваш выбор. Идеально подойдет тем, кому нужно говорить уже вчера, нет системных знаний и хочется почувствовать прогресс в обучении.",
+                          provider_token=self.PAYMENT_TOCKEN,
+                          currency="rub",
+                          is_flexible=False,
+                          prices=[special_price],
+                          start_parameter="one-month-subscription",
+                          invoice_payload="mounth3",
+                          photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
+                          photo_height=478,
+                          photo_width=512,
+                          photo_size=512,
+                          reply_markup=_markup)
+        elif subscribe_id == 2:
+            special_price = self.PRICE_2
+            special_price.amount = special_price.amount - discont*10
+            _markup.add(types.InlineKeyboardButton('Оплатить ' + str(int(special_price.amount/100)) + ' руб', pay=True))
+            _markup.add(types.InlineKeyboardButton('Назад', callback_data=callback))
+            self.send_invoice(chat_id,
+                          title="6 месяцев обучения",
+                          description="Любые два уровня на ваш выбор. Можно начать с нуля или продолжить обучение. Мощное погружение в язык со значительными результатами.",
+                          provider_token=self.PAYMENT_TOCKEN,
+                          currency="rub",
+                          is_flexible=False,
+                          prices=[special_price],
+                          start_parameter="one-month-subscription",
+                          invoice_payload="mounth6",
+                          photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
+                          photo_height=478,
+                          photo_width=512,
+                          photo_size=512,
+                          reply_markup=_markup)
+        elif subscribe_id == 3:
+            special_price = self.PRICE_3
+            special_price.amount = special_price.amount - discont*10
+            _markup.add(types.InlineKeyboardButton('Оплатить ' + str(int(special_price.amount/100)) + ' руб', pay=True))
+            _markup.add(types.InlineKeyboardButton('Назад', callback_data=callback))
+            self.send_invoice(chat_id,
+                          title="12 месев обучения",
+                          description="Полный курс обучения. С нуля и до уверенного владения итальянским. Через год можно покупать билеты и уезжать в Италию!",
+                          provider_token=self.PAYMENT_TOCKEN,
+                          currency="rub",
+                          is_flexible=False,
+                          prices=[special_price],
+                          start_parameter="one-month-subscription",
+                          invoice_payload="mounth12",
+                          photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
+                          photo_height=478,
+                          photo_width=512,
+                          photo_size=512,
+                          reply_markup=_markup)
+        pass
+
     def run(self):
         self.polling(none_stop=True, interval=0)
 
@@ -906,7 +963,7 @@ class SurveyBot(telebot.TeleBot):
         pass
 
     def __savestatus(self, id, status):
-        self.data_table.setFieldValues(id, [status, str(datetime.utcnow().isoformat()), 100], ['status', 'last_activity_date', 'score'])
+        self.data_table.setFieldValues(id, [status, str(datetime.utcnow().isoformat())], ['status', 'last_activity_date'])
 
 
     def __createKeyFromContent(self, id, chat_id, content):
@@ -932,6 +989,18 @@ class SurveyBot(telebot.TeleBot):
                 callback = 'saveuser;' + '' + ';' + user_status + ';' + addr
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
                 continue
+            if sp == '/pay1':
+                callback = 'pay;' + user_status + ';' + addr + ';1'
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+                pass
+            if sp == '/pay2':
+                callback = 'pay;' + user_status + ';' + addr + ';2'
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+                pass
+            if sp == '/pay3':
+                callback = 'pay;' + user_status + ';' + addr + ';3'
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+                pass
             if sp == '/edit':
                 if (self.user_cell_position[id] in self.data_dstn):
                     fieldname = self.data_dstn[self.user_cell_position[id]]
@@ -1001,6 +1070,7 @@ class SurveyBot(telebot.TeleBot):
             pass
         user_dict['status'] = self.user_cell_position[user_dict['id']]
         user_dict['chat_id'] = -1
+        user_dict['score'] = 100
         return user_dict
 
     def __invert_datasource_link(self, data_structure):

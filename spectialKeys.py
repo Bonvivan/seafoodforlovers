@@ -1,5 +1,7 @@
 from telebot import types
-
+#-------------------------------------------------------#
+#----created by Andrey Svitenkov, Undresaid, 10.2023----#
+#-------------------------------------------------------#
 def createKeyFromContent(user_status, content):
     btns = []
     for b, addr, sp in zip(*content[1:]):

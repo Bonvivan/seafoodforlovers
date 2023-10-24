@@ -11,6 +11,10 @@ import google.type
 
 import json
 
+#-------------------------------------------------------#
+#----created by Andrey Svitenkov, Undresaid, 10.2023----#
+#-------------------------------------------------------#
+
 def flatten(l):
     return [item for sublist in l for item in sublist]
 class GoogleTableReader():
