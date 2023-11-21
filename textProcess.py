@@ -47,6 +47,51 @@ def parseCommand(msg):
     command['args']    = msg_list[1:]
     return  command
 
+def parseFreeze(msg):
+    result = []
+    if msg=='' or msg is None:
+        return [], 'Не было заморозок курса'
+
+    msg_list = msg.split(';')
+    txt = ''
+    for m in msg_list:
+        m = m.strip()
+        if m == '':
+            break
+        s = m.split('@')
+        t1 = datetime.fromisoformat(s[0]).date()
+        result.append([t1, '', ''])
+        txt += 'C ' + s[0] + ' до ' + s[1] + ': '
+        if(s[1].strip()=='nowadays'):
+            result[-1][1] = 'nowadays'
+            result[-1][2] = (datetime.utcnow().date() - t1).days
+            txt += str(result[-1][2]) + ' дней;\n'
+            break
+        else:
+            result[-1][1] = datetime.fromisoformat(s[1]).date()
+            result[-1][2] = (result[-1][1] - t1).days
+            txt += str(result[-1][2]) + ' дней;\n'
+
+    return result, txt
+
+def encodeFreeze(schedule, freeze=None):
+    txt = ''
+    for s in schedule:
+        t2 = 'nowadays'
+        if(s[1]!='nowadays'):
+            t2 = str(s[1])
+        if not (freeze is None):
+            if (s[1]=='nowadays'):
+                t2 = str(freeze)
+                freeze = None
+        txt += str(s[0]) + '@' + str(t2) + ';'
+
+    if not (freeze is None):
+        txt += str(freeze) + '@' + 'nowadays;'
+
+    return txt
+
+
 def cleanMessage(msg, username_template='\S+'):
     z = re.match('(@'+username_template + ').*', msg)
     if z:
@@ -59,6 +104,10 @@ def parseMessageFast(msg, past_answer=''): #TODO implement a class message, keep
     result = {'content': [], 'buttons': []}
     text = msg
     text = text.split('--new-message--')
+
+    l_number = re.match('.*LEZIONE\s*(\d+).\d+.*', text[0])
+    if (l_number):
+        result['lesson'] = int(l_number.groups()[0])
 
     for txt in text:
         txt = txt.strip()
@@ -81,8 +130,13 @@ def parseMessageFast(msg, past_answer=''): #TODO implement a class message, keep
 
 def parseMessage(msg, past_answer=''): #TODO implement a class message, keeping info like results here, methods to add buttons and msges to markup, sending of msg, etc.
     result = {'content': [], 'buttons': []}
+
     text = msg
     text = text.split('--new-message--')
+
+    l_number = re.match('.*LEZIONE\s*(\d+).\d+.*', text[0])
+    if (l_number):
+        result['lesson'] = int(l_number.groups()[0])
 
     for txt in text:
         txt = txt.strip()

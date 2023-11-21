@@ -52,16 +52,16 @@ class GoogleTableReader():
         def wrapper(self, *args, **kwargs):
             access_count = 0
             r = random.random()
-            if self.read_counter > 20:
+            if self.read_counter > 100:
                 time.sleep(2+r)
                 print('Too many requests 1')
-            if self.read_counter > 30:
+            if self.read_counter > 150:
                 time.sleep(3+r)
                 print('Too many requests 2')
-            if self.read_counter > 40:
+            if self.read_counter > 200:
                 time.sleep(4+r)
                 print('Too many requests 3')
-            if self.read_counter > 50:
+            if self.read_counter > 250:
                 time.sleep(30+r)
                 print('Too many requests 3')
 
