@@ -5,6 +5,7 @@ import re
 import calendar
 from datetime import datetime, date
 import datetime as dt
+import time
 import itertools
 import commands
 import textProcess as tp
@@ -51,7 +52,7 @@ class SurveyBot(telebot.TeleBot):
 
 
     def __init__(self, bot_token, data_table, pay_tocken):
-        super().__init__(bot_token)
+        super().__init__(bot_token, threaded=False)
         self.initialisation = True
         self.bot_state_filepath = 'resources\\' + self.user.username + '.json'
         try:
@@ -1039,7 +1040,13 @@ class SurveyBot(telebot.TeleBot):
         pass
 
     def run(self):
-        self.polling(none_stop=True, interval=0, skip_pending=True)
+        while True:
+            try:
+                self.polling(none_stop=True, interval=0, skip_pending=True)
+            except Exception as e:
+                print(str(e))
+                time.sleep(15)
+
 
     def __find_keys(self, d, value):
         return [key for key, x in d.items() if str(x) == str(value)]

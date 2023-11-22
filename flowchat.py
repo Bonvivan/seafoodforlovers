@@ -111,5 +111,5 @@ class FlowBot(telebot.TeleBot):
     def run(self):
         self.polling(none_stop=True, interval=0)
 
-flowbot = FlowBot('6740380695:AAHpwrAmUAUOqlfJfX5YJy7Xq6OwKrignvY', chat)
+flowbot = FlowBot('XXX', chat)
 flowbot.run()
