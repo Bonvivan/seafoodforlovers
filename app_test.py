@@ -35,8 +35,7 @@ client = TelegramClient('MySuperSession', api_id, api_hash, system_version="4.16
 superbot_state_filepath = 'resources/superbot_state.json'
 superbot_state = {'tmp_chat_id':[]}
 
-def decodeEvent(event):
-
+def decodeLinkEvent(event):
     event = str(event)
     z = re.match('.*user_id=(\d+).*', event)
     try:
@@ -51,8 +50,24 @@ def decodeEvent(event):
     except:
         print('Error in event decoding: ' + str(event))
         return None
-    return {'user_id': uid, 'chat_id': cid, 'time': time, 'action': action, 'inviter_id': inviter_id}
+    return {'user_id': uid, 'chat_id': cid, 'time': time, 'inviter_id': inviter_id}
 
+def decodeAddEvent(event):
+    event = str(event)
+    z = re.match('.*user_id=(\d+).*', event)
+    try:
+        uid = int(z.groups()[0])
+        z = re.match('.*chat_id=(\d+).*', event)
+        cid = int(z.groups()[0])
+        z = re.match('.*date=(datetime.datetime\(.+tzinfo=\S+\)),.*', event)
+        time = evalTime.evaltime(z.groups()[0])
+        z = re.match('.*action=(\w+)\(users=\[(\W+)\]\).*', event)
+        action = z.groups()[0]
+        users_id = z.groups()[1].split(',')
+    except:
+        print('Error in event decoding: ' + str(event))
+        return None
+    return {'user_id': uid, 'chat_id': cid, 'time': time}
 
 async def channel_inspector():
     print('channel_inspector')
@@ -101,26 +116,34 @@ def timer_control():
 
 @client.on(events.ChatAction())
 async def normal_handler(event):
-    if event.user_joined:
+    if (event.user_joined or event.user_added):
         state_f = open(superbot_state_filepath, 'r')
         superbot_state = json.load(state_f)
         superbot_state = tp.correct_time(superbot_state)
 
-        event_dict = decodeEvent(event) # reading of the event string to create a dictionary
+        #event_dict = decodeLinkEvent(event) # reading of the event string to create a dictionary
 
-        if event_dict==None:
+        if event.user_added:
+            for uid in event.input_users:
+                msg = await client.kick_participant(event.chat_id, uid.user_id)
             return None
 
+        '''
+        me = await client.get_me()
+        if int(event.action_message.action.inviter_id) != int(me.id):
+            msg = await client.kick_participant(event.chat_id, event.user.id)
+        '''
+
         for ch in superbot_state['tmp_chat_id']:
-            if ch['id']==event_dict['chat_id']:
-                await client.send_message(ch['botuser'], '/savechannel;' + str(event_dict['user_id']) + ';' + str(ch['id']) + ';' + event_dict['time'].isoformat())
+            if -int(ch['id'])==int(event.chat_id):
+                await client.send_message(ch['botuser'], '/savechannel;' + str(event.user.id) + ';' + str(event.chat_id) + ';' + event.action_message.date.isoformat())
                 superbot_state['tmp_chat_id'].remove(ch)
         pass
 
 @client.on(events.NewMessage(incoming=True))
 async def normal_handler(event):
     global superbot_state
-    print('New messega resiceved ' )
+    print('!!!!!!!!!!!!!!New messega resiceved 1')
     result = None
     msg_txt = event.message.to_dict()['message']
     print('New messega resiceved: ' + str(msg_txt))
@@ -142,29 +165,15 @@ async def normal_handler(event):
             txt += '@' + command['args'][1] + ' - это я, Марго, твой преподаватель. Я буду проверять задания и помогать в обучении\n'
             #await client.send_message(result.chats[0].id, txt) # sending message to a chat
             txt = '/tunnelmsg;' + str(pupil) + ';Это приглашение в чат для обучения итальянскому. Переходи в группу и начни свой первый урок! \n\n<b>Этот чат можете удалить, он больше не пригодится.</b>\n\n' + invite_link
+            await asyncio.sleep(5)
             await client.send_message(botuser, txt, parse_mode='html') # sending a link to a user.
             superbot_state['tmp_chat_id'].append({'id': result.chats[0].id, 'pid': pupil, 'botuser': botuser, 'time': result.chats[0].date.isoformat()})
             state_f = open(superbot_state_filepath, 'w')
             json.dump(superbot_state, state_f, indent=4)
             state_f.close()
         except Exception as err:
+            print('Error in creating chat for learning: ' + str(err))
             await client(functions.messages.DeleteChatRequest(chat_id=result.chats[0].id))
-            print(err)
-    '''
-    if command['request'] == cm.COMMANDS.delete_channal:
-        try:
-            chat_id = command['args'][:-1]
-            user_list = client.get_participants(entity=chat_id)
-            print('Deleting chat for users: ')
-            for _user in user_list:
-                print(_user)
-            await client(functions.messages.DeleteChatRequest(chat_id))
-            print('Chat is deleted')
-        except Exception as err:
-            print('Chat was not deleted')
-            print(err)
-    '''
-    #print(event.message.to_dict()['message'])
 
     try:
         state_f = open(superbot_state_filepath, 'r')

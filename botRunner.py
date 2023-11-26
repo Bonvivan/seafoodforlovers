@@ -92,9 +92,9 @@ class SurveyBot(telebot.TeleBot):
             cid = self.user_chat_id[message.from_user.id]
             try:
                 link = self.create_chat_invite_link(int(cid)).invite_link
-                self.send_message(self.bot_state['chefid'], '!!!ОПЛАТА В ЧАТЕ, ГУЛЯЙ РВАНИНА!!!: \n' + link)
+                self.send_message(self.bot_state['chiefid'], '!!!ОПЛАТА В ЧАТЕ, ГУЛЯЙ РВАНИНА!!!: \n' + link)
             except:
-                self.send_message(self.bot_state['chefid'], '!!!' + str(message.from_user.username) + ' ОПЛАТИЛ КУРС, ПРОВЕРЬ ТАБЛИЦУ!!!: \n')
+                self.send_message(self.bot_state['chiefid'], '!!!' + str(message.from_user.username) + ' ОПЛАТИЛ КУРС, ПРОВЕРЬ ТАБЛИЦУ!!!: \n')
             uid = message.from_user.id
             if message.successful_payment.invoice_payload=='mounth3':
                 self.data_table.setFieldValues(uid, ['0',str(message.successful_payment), str(datetime.utcnow().isoformat()), 90, 60],
@@ -117,34 +117,12 @@ class SurveyBot(telebot.TeleBot):
             cell = message.text.split(';')[-1]
             self.show_cell(message.chat.id, cell)
 
-        @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('//vai_lezioni', m.text) == len(
-            '//vai_lezioni'))  # TODO: move to commands
-        @self.single_user_decorator
-        def lesson_command(message):
-            print('lesson_command')
-            if not ('chefid' in self.bot_state) or int(self.bot_state['chefid']) < 0:
-                self.send_message(message.from_user.id,
-                                  "Не могу создать урок, учитель не активировал опцию, поробуйте позже")
-            if message.from_user.id != message.chat.id:
-                self.send_message(message.from_user.id,
-                                  "Ваш групповой чат для обучения уже создан. Наберите в нем /start для продолжения")
-            else:
-                if (self.__check_user_info(message.from_user.id)):
-                    self.create_lesson_chat(message.from_user)
-                elif self.user_chat_id[message.from_user.id] != -1:
-                    chat_id = int(self.user_chat_id[message.from_user.id])
-                    link = self.create_chat_invite_link(chat_id).invite_link
-                    self.send_message(message.from_user.id, "Вы уже создали чат для урока: " + link)
-                else:
-                    self.send_message(message.from_user.id, "Вы не закончили опрос.")
-            pass
-
         @self.message_handler(
             func=lambda m: tp.MSG_TYPE.compare('/savechannel', m.text) == len('/savechannel'))  # TODO: move to commads
         @self.single_user_decorator
         def new_chat_event(message):
             print('new_chat_event')
-            if message.from_user.id != self.bot_state['chefid']:
+            if not(message.from_user.id in self.bot_state['chiefid']):
                 self.send_message(message.from_user.id,
                                   "Только администратор бота может отдавать комманду на создание обучающего чата")
                 return None
@@ -154,9 +132,24 @@ class SurveyBot(telebot.TeleBot):
             cid = cmd['args'][1]
             ch_date = cmd['args'][2]
             try:
-                cid = -int(cid)
-                # data_table.setFieldValue(int(uid), cid,  'chat_id'  )
-                # data_table.setFieldValue(int(uid), ch_date ,  'date_start')
+                uid = int(uid)
+                cid = int(cid)
+            except Exception as err:
+                print('Wrong chat id: not a number ' + str(err))
+
+            if uid in self.bot_state['chiefid']:
+                return None
+            
+            if not(int(uid) in self.user_chat_id.keys()):
+                self.kick_chat_member(chat_id=cid, user_id=uid, until_date=None)
+                print('Попытка добавить неизвестного пользователя + ' + str(uid) + ' to ' + str(cid))
+                return None
+            if cid in self.user_chat_id.values():
+                self.kick_chat_member(chat_id=cid, user_id=uid, until_date=None)
+                print('Попытка добавить лишнего пользователя + ' + str(uid) + ' to ' + str(cid))
+                return None
+
+            try:
                 data_table.setFieldValues(int(uid), [cid, ch_date], ['chat_id', 'date_start'])
                 self.user_chat_id[int(uid)] = cid
                 self.start_lesson(int(uid), cid, message)
@@ -188,10 +181,12 @@ class SurveyBot(telebot.TeleBot):
         @self.message_handler(commands=['imyourchief'])
         def chief_command(message):
             print('chief_command')
-            if message.from_user.username == 'roro_tmp' or message.from_user.username == 'fille_soleil':
+            if message.from_user.username == 'roro_tmp' or message.from_user.username == 'fille_soleil' or message.from_user.username == 'photo_mascha':
                 self.send_message(message.from_user.id, "Да, моя госпожа!!")
-                self.bot_state['chefid'] = message.from_user.id
-                self.bot_state['chiefname'] = message.from_user.username
+                if not(message.from_user.id in self.bot_state):
+                    if not(message.from_user.id in self.bot_state['chiefid']):
+                        self.bot_state['chiefid'  ].append(message.from_user.id      )
+                        self.bot_state['chiefname'].append(message.from_user.username)
             else:
                 self.send_message(message.from_user.id, "Your username is wrong, you are not a chief")
 
@@ -203,6 +198,14 @@ class SurveyBot(telebot.TeleBot):
         @self.single_user_decorator
         def start_command(message):
             print('start_command')
+            uid = message.from_user.id
+            cid = message.chat.id
+            if 'chiefid' in self.bot_state and uid in self.bot_state['chiefid']:
+                self.send_message(cid, 'Вы учитель.')
+                if cid == uid:
+                    self.send_message(cid, 'Нельзя быть учителем и учеником одновременно.')
+                return None
+
             self.data_table.refresh()
             user = self.__check_user(message.from_user.id)
             if (user == None):
@@ -217,7 +220,7 @@ class SurveyBot(telebot.TeleBot):
             else:
                 self.init_state(message.from_user.id)
                 self.user_cell_position = {**self.user_cell_position, **user[0]}
-                self.user_chat_id = {**self.user_cell_position, **user[1]}
+                self.user_chat_id = {**self.user_chat_id, **user[1]}
             if message.from_user.id in self.user_chat_id:
                 self.say_hello(message.from_user.id, chat_id=self.user_chat_id[message.from_user.id])
             else:
@@ -236,11 +239,14 @@ class SurveyBot(telebot.TeleBot):
                 return None
 
             link = self.create_chat_invite_link(int(cid)).invite_link
-            result = self.send_message(self.bot_state['chefid'], 'ВОПРОС ИЛИ СБОЙ В ЧАТЕ: \n' + link)
+            result = self.send_message(self.bot_state['chiefid'], 'ВОПРОС ИЛИ СБОЙ В ЧАТЕ: \n' + link)
 
             now = datetime.utcnow()
+            all_chat_ids = ','.join([str(res.chat.id)    for res in result])
+            all_msg_ids  = ','.join([str(res.message_id) for res in result])
+
             self.data_table.setFieldValue(uid,
-                                          str(result.chat.id) + ';' + str(result.message_id) + ';' + str(
+                                          str(all_chat_ids) + ';' + str(all_msg_ids) + ';' + str(
                                               now.isoformat()), 'extra_call')
 
             result = self.send_message(cid, 'Запрос отправлен!')
@@ -251,18 +257,22 @@ class SurveyBot(telebot.TeleBot):
         def solved_command(message):
             tid = message.from_user.id
             cid = message.chat.id
-            if tid != int(self.bot_state['chefid']):
-                self.send_message(cid, 'Запрос на вызов преподавателя снят')
 
             call_msg = self.data_table.getFieldValue(cid, 'extra_call', key_column='chat_id')
+            if call_msg is None:
+                self.send_message(cid, "Нет активного запроса, проверьте /status")
             call_chat_id, call_msg_id, when = call_msg.split(';')
             try:
-                self.edit_message_text('Запрос снят', chat_id=int(call_chat_id), message_id=int(call_msg_id))
+                chat_ids = call_chat_id.split(',')
+                msg_ids = call_msg_id.split(',')
+                for c_id, m_id in zip(chat_ids, msg_ids):
+                    self.edit_message_text('Запрос снят', chat_id=int(c_id), message_id=int(m_id))
             except Exception as err:
                 print('edit_message_text(Запрос снят' + str(err))
                 pass
             self.data_table.setFieldValue(cid, None, 'extra_call', key_column='chat_id')
 
+            self.send_message(cid, 'Запрос на вызов преподавателя снят')
             pass
 
         @self.message_handler(commands=['delete'])
@@ -282,7 +292,7 @@ class SurveyBot(telebot.TeleBot):
             uid = message.from_user.id
             cid = message.chat.id
 
-            if uid != int(self.bot_state['chefid']):
+            if not(uid in self.bot_state['chiefid']):
                 if cid != self.user_chat_id[uid]:
                     return None
 
@@ -292,9 +302,9 @@ class SurveyBot(telebot.TeleBot):
             if schedule[-1][1].strip() == 'nowadays':
                 cell_txt = tp.encodeFreeze(schedule, datetime.utcnow().date())
                 self.data_table.setFieldValue(cid, cell_txt, 'freeze', key_column='chat_id')
-                self.send_message(cid, 'Курс рамарожен\n')
+                self.send_message(cid, 'Курс раморожен\n')
             else:
-                self.send_message(cid, 'Запрос не заморожен')
+                self.send_message(cid, 'Курс не заморожен\n')
             pass
 
         @self.message_handler(commands=['freeze'])
@@ -303,7 +313,7 @@ class SurveyBot(telebot.TeleBot):
             uid = message.from_user.id
             cid = message.chat.id
 
-            if uid != int(self.bot_state['chefid']):
+            if not(uid in self.bot_state['chiefid']):
                 if cid != self.user_chat_id[uid]:
                     return None
 
@@ -311,7 +321,7 @@ class SurveyBot(telebot.TeleBot):
             schedule, txt = tp.parseFreeze(freeze_info)
             if len(schedule) > 0 and schedule[-1][1] == 'nowadays':
                 self.send_message(cid, 'Курс уже заморожен\n')
-            if uid==int(self.bot_state['chefid']):
+            if uid in self.bot_state['chiefid']:
                 txt = tp.encodeFreeze(schedule, datetime.utcnow().date())
                 self.data_table.setFieldValue(cid, txt, 'freeze', key_column='chat_id')
                 self.send_message(cid, 'Курс заморожен\n')
@@ -319,17 +329,22 @@ class SurveyBot(telebot.TeleBot):
                 self.send_message(cid, txt)
             else:
                 link = self.create_chat_invite_link(int(cid)).invite_link
-                self.send_message(self.bot_state['chefid'], 'Запрос заморозки чата: \n' + link)
+                for ii in self.bot_state['chiefid']:
+                    self.send_message(ii, 'Запрос заморозки чата: \n' + link)
                 self.send_message(cid, 'Запрос отправлен!')
             pass
 
         @self.message_handler(commands=['status'])
         @self.single_user_decorator
         def status_command(message):
+            print('status_command')
             uid = message.from_user.id
             cid = message.chat.id
-            wait_command = False
-            print('status_command')
+
+            if 'chiefid' in self.bot_state and uid in self.bot_state['chiefid']:
+                self.send_message(cid, 'Вы учитель.')
+                uid = self.__find_keys(self.user_chat_id, cid)[0]
+
             user_status = self.data_table.getPupilStatus(uid)
             if (user_status is None):
                 self.send_message(cid, 'Вы новый ученик: \n /start чтоб перейти к обучению.')
@@ -387,7 +402,7 @@ class SurveyBot(telebot.TeleBot):
 
                 txt += 'История замарозок курса: \n' + txt_sc
                 if schedule[-1][1]=='nowadays':
-                    txt += "<b>Сейчас курс замарожен с " + str(schedule[-1][0]) + '</b>'
+                    txt += "<b>Сейчас курс заморожен с " + str(schedule[-1][0]) + '</b>'
                     frozen = True
 
                 txt += "\nДо конца курса осталось " + str(period - rest) + ' дней;\n'
@@ -395,10 +410,11 @@ class SurveyBot(telebot.TeleBot):
             txt += "\n/start   - повторно выслать последнее сообщение и в случае сбоя;"
             txt += "\n/call    - уведомить преподавателя о вопросе или сбое."
 
-            if self.user_frozen[uid]:
-                txt += "\n/unfreeze  - разморозить курс."
-            else:
-                txt += "\n/freeze  - запросить заморозку курса."
+            if 'payment_date' in user_status.keys() and user_status['payment_date'] != '':
+                if self.user_frozen[uid]:
+                    txt += "\n/unfreeze  - разморозить курс."
+                else:
+                    txt += "\n/freeze  - запросить заморозку курса."
 
             if not(self.user_frozen[uid]):
                 if uid in self.user_command:
@@ -412,7 +428,6 @@ class SurveyBot(telebot.TeleBot):
         @self.single_user_decorator
         def text_message(message):
             self.read_commands(message)
-
         pass
 
         @self.callback_query_handler(func=lambda c: c.data.startswith('pay'))
@@ -438,7 +453,7 @@ class SurveyBot(telebot.TeleBot):
             message = callback_query.message
             print('lesson_command')
             self.answer_callback_query(callback_query.id)
-            if not ('chefid' in self.bot_state) or int(self.bot_state['chefid']) < 0:
+            if not ('chiefid' in self.bot_state) or len(self.bot_state['chiefid']) == 0:
                 self.send_message(message.from_user.id,
                                   "Не могу создать урок, учитель не активировал опцию, поробуйте позже")
             else:
@@ -495,6 +510,10 @@ class SurveyBot(telebot.TeleBot):
             self.answer_callback_query(callback_query.id)
             print(callback_query)
             print('Sending request to save user')
+            uid = callback_query.message.from_user.id
+            if(callback_query.message.from_user.username == ''):
+                self.send_message(callback_query.message.chat.id, 'У вас не задано имя пользователя в Telegram. Пожалуйста задайте имя пользователя, потом наберите /start, чтоб продолжить\n')
+                return None
             try:
                 pupil_info = self.__create_user(self.survey_dict,
                                                 callback_query.from_user)  # TODO change to save next state, not current
@@ -546,6 +565,19 @@ class SurveyBot(telebot.TeleBot):
             print('Chat was deleted due to outdue joining: ' + message.text)
             pass
         '''
+
+    def send_message(self, *args, **kwargs):
+        chat_ids = args[0]
+        print('My send message')
+        results = []
+        if isinstance(chat_ids, list):
+            for cid in chat_ids:
+               res =  super().send_message(cid, *args[1:], **kwargs)
+               results.append(res)
+        else:
+            results=super().send_message(chat_ids, *args[1:], **kwargs)
+
+        return results
 
     def single_user_decorator(self, function_to_decorate):
         def wrapper(*args):
@@ -609,7 +641,6 @@ class SurveyBot(telebot.TeleBot):
                 print('Err in msg sending: ' + str(err))
                 self.send_message(_id, m[0], reply_markup=mrk)
 
-
         pass
 
     def init_state(self, _id=-1):
@@ -658,10 +689,19 @@ class SurveyBot(telebot.TeleBot):
         threading.Timer(300.0, self.checkSchedule).start()
         print('checkSchedule')
         for uid in list(self.schedule.keys()):
+            if not(uid in self.schedule):
+                continue
             evnt = self.schedule[uid]
             if evnt is None:
                 continue
             if evnt['time'] <= datetime.utcnow():
+                if self.user_frozen[uid]:
+                    continue
+                #f_sch = self.data_table.getFieldValue(uid, 'freeze')
+                #if f_sch[-1][1] == 'nowadays':
+                #    self.user_frozen[uid] = True
+                #    continue
+
                 self.user_cell_position[uid] = evnt['cell']
                 if uid in self.user_chat_id:
                     chat_id = self.user_chat_id[uid]
@@ -676,10 +716,6 @@ class SurveyBot(telebot.TeleBot):
     def cleanSchedule(self, uid):
         self.data_table.setFieldValue(uid, None, 'delayed_event')
         self.schedule.pop(uid)
-
-    def parseStatus(self, status):
-
-        pass
 
     def start_lesson(self, uid, chat_id, message):
         print('start_lesson')
@@ -702,6 +738,7 @@ class SurveyBot(telebot.TeleBot):
 
         txt = '🤖 это наш чат для обучения итальянскому от <b>Langusto!</b>\n'
         txt += 'Через минуту, здесь появится первый урок...\n'
+        txt += 'Да, не через секунду, а именно через МИНУТУ!\n'
         txt += '\n'
         txt += ' ...А если долго не появляется, наберите /start \n'
         txt += ' /status - чтоб узнать статус и доступные команды \n'
@@ -737,10 +774,12 @@ class SurveyBot(telebot.TeleBot):
 
         if cmd == 'checkme':
             link = self.create_chat_invite_link(int(self.user_chat_id[uid])).invite_link
-            result = self.send_message(self.bot_state['chefid'], 'Запрос на проверку урока: \n' + link)
+            result = self.send_message(self.bot_state['chiefid'], 'Запрос на проверку урока: \n' + link)
             print(result)
             now = datetime.utcnow()
-            self.data_table.setFieldValue(uid, str(result.chat.id) + ';' + str(result.message_id) + ';' + str(
+            all_chat_ids = ','.join([str(res.chat.id) for res in result])
+            all_msg_ids  = ','.join([str(res.message_id) for res in result])
+            self.data_table.setFieldValue(uid, all_chat_ids + ';' + all_msg_ids + ';' + str(
                 now.isoformat()), 'call_message_id')
 
         return True
@@ -766,12 +805,15 @@ class SurveyBot(telebot.TeleBot):
 
         try:
             if cmd == 'checked':
-                if tid == int(self.bot_state['chefid']):
+                if tid in self.bot_state['chiefid']:
                     call_msg = self.data_table.getFieldValue(chat_id, 'call_message_id', key_column='chat_id')
                     if not(call_msg is None):
                         call_chat_id, call_msg_id, when = call_msg.split(';')
                         try:
-                            self.edit_message_text('Урок проверен', chat_id=int(call_chat_id), message_id=int(call_msg_id))
+                            chat_ids = call_chat_id.split(',')
+                            msg_ids  = call_msg_id .split(',')
+                            for c_id, m_id in zip(chat_ids, msg_ids):
+                                self.edit_message_text('Урок проверен', chat_id=int(c_id), message_id=int(m_id))
                         except:
                             pass
                     self.data_table.setFieldValue(chat_id, None, 'call_message_id', key_column='chat_id')
@@ -829,7 +871,7 @@ class SurveyBot(telebot.TeleBot):
         print('goahead')
         uid = message.from_user.id
         chat_id = message.chat.id
-        if message.from_user.id == int(self.bot_state['chefid']):
+        if 'chiefid' in self.bot_state and message.from_user.id in self.bot_state['chiefid']:
             pupil_id = self.__find_keys(self.user_chat_id, chat_id)
             if not pupil_id:
                 pass
@@ -966,9 +1008,9 @@ class SurveyBot(telebot.TeleBot):
         pass
 
     def create_lesson_chat(self, pupil_user):
-        participants = [self.user.username, self.bot_state['chiefname'], pupil_user.username]
+        participants = [self.user.username, *self.bot_state['chiefname'], pupil_user.username]
         txt = '/create_a_channal;' + ';'.join(participants)
-        self.send_message(self.bot_state['chefid'], txt)
+        self.send_message(self.bot_state['chiefid'], txt)
         pass
 
     def pay_command(self, chat_id, dptr, addr, subscribe_id):
@@ -1164,9 +1206,11 @@ class SurveyBot(telebot.TeleBot):
             else:
                 user_dict[k] = ''
             pass
-        user_dict['status'] = self.user_cell_position[user_dict['id']]
+        user_dict['status']  = self.user_cell_position[user_dict['id']]
         user_dict['chat_id'] = -1
-        user_dict['score'] = 100
+        user_dict['score']   = 100
+        self.user_chat_id[int(user_dict['id'])] = -1
+        self.user_frozen [int(user_dict['id'])] = False
         return user_dict
 
     def __invert_datasource_link(self, data_structure):

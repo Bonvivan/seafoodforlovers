@@ -73,6 +73,7 @@ class GoogleTableReader():
                     self.critical_flag = False
 
             self.critical_flag = True
+            res = None
             try:
                 res = function_to_decorate(self, *args, **kwargs)
             except Exception as err:
