@@ -212,9 +212,8 @@ class SurveyBot(telebot.TeleBot):
                 uid = message.from_user.id
                 self.user_cell_position.pop(uid,None)
                 self.user_chat_id.pop(uid, None)
-                self.user_command.pop(uid, None)
-                self.teacher_command.pop(uid, None)
-                self.teacher_command.pop(uid, None)
+                self.user_command[uid]=[]#.pop(uid, None)
+                self.teacher_command[uid]=[]
                 self.schedule.pop(uid, None)
                 self.user_cell_position[message.from_user.id] = 'intro!A1'
             else:
@@ -378,7 +377,7 @@ class SurveyBot(telebot.TeleBot):
                 self.send_message(cid, "Отправлено уведомление о вопросе или сбое " +
                                   str(when.date()) + ' в ' +
                                   str(when.hour) + ':' + str(when.minute) + 'GMT;')
-                txt += "\n/solved - снять запрос на вызов преподавателя;"
+                txt += "\n/solved - снять запрос на вызов преподавателя;\n"
             if 'delayed_event' in user_status.keys() and user_status['delayed_event'] != '':
                 when, cell = user_status['delayed_event'].split(';')
                 when = datetime.fromisoformat(when)
@@ -406,6 +405,7 @@ class SurveyBot(telebot.TeleBot):
                     frozen = True
 
                 txt += "\nДо конца курса осталось " + str(period - rest) + ' дней;\n'
+                txt += "Можно получить уроков вне очереди: " + str(3-int(user_status['lessons_at_once']))
 
             txt += "\n/start   - повторно выслать последнее сообщение и в случае сбоя;"
             txt += "\n/call    - уведомить преподавателя о вопросе или сбое."
@@ -418,8 +418,8 @@ class SurveyBot(telebot.TeleBot):
 
             if not(self.user_frozen[uid]):
                 if uid in self.user_command:
-                    c = self.user_command[uid]
-                    txt += '\n//' + str(c[0]) + ' - ' + commands.COMMANDS.soft_commands[str(c[0])]
+                    for c in self.user_command[uid]:
+                        txt += '\n//' + str(c[0]) + ' - ' + commands.COMMANDS.soft_commands[str(c[0])]
 
             self.send_message(cid, txt, parse_mode='html')
         pass
@@ -480,7 +480,6 @@ class SurveyBot(telebot.TeleBot):
         def next_step_delay(callback_query: types.CallbackQuery):
             print('next_step_delay')
             self.answer_callback_query(callback_query.id)
-            uid = callback_query.from_user.id
             cid = callback_query.message.chat.id
             uid = self.__find_keys(self.user_chat_id, cid)[0]
             ####
@@ -488,14 +487,15 @@ class SurveyBot(telebot.TeleBot):
             rand_m = randrange(0, 30)
             _tomorrow = _today + dt.timedelta(days=1) + dt.timedelta(hours=4) + dt.timedelta(minutes=rand_m)
             _tomorrow_test = datetime.utcnow() + dt.timedelta(minutes=1)
-            _tomorrow_test = _tomorrow #TODO comment here for debug
+            #_tomorrow_test = _tomorrow #TODO comment here for debug
             event_stamp = str(_tomorrow_test.isoformat()) + ';' + callback_query.data.split(';')[-1]
-            self.data_table.setFieldValue(uid, event_stamp, 'delayed_event')
+            self.data_table.setFieldValues(uid, [event_stamp, 0], ['delayed_event','lessons_at_once'])
             self.schedule[uid] = {'time': _tomorrow_test, 'cell': callback_query.data.split(';')[-1]}
             txt = '🤖 Следующий урок будет выслан ' + str(_tomorrow.date()) + ' в ' + str(_tomorrow.hour) + ':' + str(
                 _tomorrow.minute) + ' GMT.'
 
             self.send_message(callback_query.message.chat.id, txt)
+
             try:
                 self.edit_message_reply_markup(callback_query.message.chat.id,
                                                message_id=callback_query.message.message_id, reply_markup='')
@@ -709,7 +709,7 @@ class SurveyBot(telebot.TeleBot):
                     chat_id = uid
 
                 self.say_hello(uid, chat_id)
-                self.__savestatus(uid, self.user_cell_position[uid])
+                self.__savestatus(uid, self.user_cell_position[uid], [1], ['lessons_at_once'])
                 self.cleanSchedule(uid)
         pass
 
@@ -758,17 +758,18 @@ class SurveyBot(telebot.TeleBot):
         uid = message.from_user.id
         chat_id = message.chat.id
         cmd = self.__extract_command(message.text)
-        if message.text[0] != '/':
-            if cmd == self.user_command[uid][0]:
-                addr[0] = self.user_command.pop(uid)[1]
-            return True
+        if cmd != '':
+            cmd_is_found = False
+            for uc in self.user_command[uid]:
+                if cmd == uc[0]:
+                    addr[0] = uc[1]
+                    cmd_is_found = True
         else:
-            pass
-        # cmd[0]=='/':
-        if cmd != self.user_command[uid][0]:
+            return True
+
+        if not(cmd_is_found):
             return False
 
-        addr[0] = self.user_command.pop(uid)[1]
         if cmd == 'le_risposte':
             pass
 
@@ -782,6 +783,16 @@ class SurveyBot(telebot.TeleBot):
             self.data_table.setFieldValue(uid, all_chat_ids + ';' + all_msg_ids + ';' + str(
                 now.isoformat()), 'call_message_id')
 
+        if cmd == 'nextnow':
+            extra_lesson_num = int(self.data_table.getFieldValue(uid, 'lessons_at_once'))
+            if extra_lesson_num<3:
+                extra_lesson_num += 1
+                self.data_table.setFieldValues(uid, [extra_lesson_num+1, ''], ['lessons_at_once','delayed_event'])
+            else:
+                self.send_message(chat_id, 'Нельзы получить больше уроков вне очереди подряд.')
+                addr[0] = None
+                return True
+            self.send_message(chat_id, 'Получено уроков вне очереди подряд: ' + str(extra_lesson_num))
         return True
 
     def teacher_command_processor(self, message, addr):
@@ -789,19 +800,12 @@ class SurveyBot(telebot.TeleBot):
         chat_id = message.chat.id
         cmd = self.__extract_command(message.text)
 
-        if message.text[0] != '/':
-            if cmd == self.teacher_command[tid][0]:
-                addr[0] = self.teacher_command.pop(tid)[1]
-            return True
+        if message.text[0] != '':
+            for tc in self.teacher_command[chat_id]:
+                if cmd == tc[0]:
+                    addr[0] = tc[1]
         else:
-            pass
-
-        # cmd[0]=='/':
-        if cmd != self.teacher_command[chat_id][0]:
             return False
-
-        t_cmd = self.teacher_command.pop(chat_id)
-        addr[0] = t_cmd[1]
 
         try:
             if cmd == 'checked':
@@ -809,20 +813,15 @@ class SurveyBot(telebot.TeleBot):
                     call_msg = self.data_table.getFieldValue(chat_id, 'call_message_id', key_column='chat_id')
                     if not(call_msg is None):
                         call_chat_id, call_msg_id, when = call_msg.split(';')
-                        try:
-                            chat_ids = call_chat_id.split(',')
-                            msg_ids  = call_msg_id .split(',')
-                            for c_id, m_id in zip(chat_ids, msg_ids):
-                                self.edit_message_text('Урок проверен', chat_id=int(c_id), message_id=int(m_id))
-                        except:
-                            pass
+                        chat_ids = call_chat_id.split(',')
+                        msg_ids  = call_msg_id .split(',')
+                        for c_id, m_id in zip(chat_ids, msg_ids):
+                            self.edit_message_text('Урок проверен', chat_id=int(c_id), message_id=int(m_id))
                     self.data_table.setFieldValue(chat_id, None, 'call_message_id', key_column='chat_id')
-
                 else:
-                    self.teacher_command[chat_id] = t_cmd
                     return False
-        except:
-            self.teacher_command[chat_id] = t_cmd
+        except Exception as e:
+            print('Error in teacher_command_processor: ' + str(e))
             return False
 
         return True
@@ -841,13 +840,12 @@ class SurveyBot(telebot.TeleBot):
         # else:
         addr = [None]
 
-        if chat_id in self.teacher_command.keys():
+        if len(self.teacher_command[chat_id])>0:
             if not (self.teacher_command_processor(message, addr)):  # reading of next cell address here
                 self.wrong_command_report(message)
                 # self.read_from_cell(uid)
                 return None
-
-        elif uid in self.user_command:
+        elif len(self.user_command[uid])>0:
             if not (self.user_command_processor(message, addr)):  # reading of next cell address here
                 self.wrong_command_report(message)
                 self.read_from_cell(uid)
@@ -1100,14 +1098,14 @@ class SurveyBot(telebot.TeleBot):
         return z.groups()[0]
         pass
 
-    def __savestatus(self, id, status):
-        self.data_table.setFieldValues(id, [status, str(datetime.utcnow().isoformat())], ['status', 'last_activity_date'])
+    def __savestatus(self, id, status, more_val=[], more_fields=[]):
+        self.data_table.setFieldValues(id, [status, str(datetime.utcnow().isoformat()), *more_val], ['status', 'last_activity_date', *more_fields])
 
 
     def __createKeyFromContent(self, id, chat_id, content):
 
-        self.user_command.pop(id, None)
-        self.teacher_command.pop(chat_id, None)
+        self.user_command[id] = []#.pop(id, None)
+        self.teacher_command[chat_id] = []#.pop(chat_id, None)
 
         btns = []
         user_status = self.user_cell_position[id]
@@ -1157,11 +1155,11 @@ class SurveyBot(telebot.TeleBot):
             if sp == '/ucommand':
                 cmd = self.__extract_command(title)
                 btns.append(None)
-                self.user_command[id] = [cmd, addr]
+                self.user_command[id].append([cmd, addr])
             if sp == '/tcommand':
                 cmd = self.__extract_command(title)
                 btns.append(None)
-                self.teacher_command[chat_id] = [cmd, addr]
+                self.teacher_command[chat_id].append([cmd, addr])
             if sp == '/tomorrow':
                 callback = 'tomorrow;' + title + ';' + user_status + ';' + addr
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))

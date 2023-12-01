@@ -225,7 +225,11 @@ class GoogleTableReader():
         rng = sheetName + '!' + cellRange
         print('setValue')
         body = {}
-        body['values'] = [value]
+        if type(value) == list():
+            if type(value[0]) == list():
+                body['values'] = value
+        else:
+            body['values'] = [value]
 
         resp = None
         self.write_counter += 1

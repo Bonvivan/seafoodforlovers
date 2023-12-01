@@ -105,7 +105,7 @@ def parseMessageFast(msg, past_answer=''): #TODO implement a class message, keep
     text = msg
     text = text.split('--new-message--')
 
-    l_number = re.match('.*LEZIONE\s*(\d+).\d+.*', text[0])
+    l_number = re.match('\s*LEZIONE *(\d+)\.[\d+ ].*', text[0])
     if (l_number):
         result['lesson'] = int(l_number.groups()[0])
 
