@@ -419,7 +419,10 @@ class SurveyBot(telebot.TeleBot):
             if not(self.user_frozen[uid]):
                 if uid in self.user_command:
                     for c in self.user_command[uid]:
-                        txt += '\n//' + str(c[0]) + ' - ' + commands.COMMANDS.soft_commands[str(c[0])]
+                        try:
+                            txt += '\n//' + str(c[0]) + ' - ' + commands.COMMANDS.soft_commands[str(c[0])]
+                        except Exception as e:
+                            print('Error in status_command: ' + str(e))
 
             self.send_message(cid, txt, parse_mode='html')
         pass
