@@ -405,7 +405,7 @@ class SurveyBot(telebot.TeleBot):
                     frozen = True
 
                 txt += "\nДо конца курса осталось " + str(period - rest) + ' дней;\n'
-                txt += "Можно получить уроков вне очереди: " + str(3-int(user_status['lessons_at_once']))
+                txt += "Можно получить уроков <b>вне очереди: " + str(3-int(user_status['lessons_at_once'])) + '</b>\n'
 
             txt += "\n/start   - повторно выслать последнее сообщение и в случае сбоя;"
             txt += "\n/call    - уведомить преподавателя о вопросе или сбое."
@@ -787,12 +787,12 @@ class SurveyBot(telebot.TeleBot):
             extra_lesson_num = int(self.data_table.getFieldValue(uid, 'lessons_at_once'))
             if extra_lesson_num<3:
                 extra_lesson_num += 1
-                self.data_table.setFieldValues(uid, [extra_lesson_num+1, ''], ['lessons_at_once','delayed_event'])
+                self.data_table.setFieldValues(uid, [extra_lesson_num, ''], ['lessons_at_once','delayed_event'])
             else:
-                self.send_message(chat_id, 'Нельзы получить больше уроков вне очереди подряд.')
+                self.send_message(chat_id, 'Нельзы получить больше уроков вне очереди.')
                 addr[0] = None
                 return True
-            self.send_message(chat_id, 'Получено уроков вне очереди подряд: ' + str(extra_lesson_num))
+            self.send_message(chat_id, 'Получено уроков <b>вне очереди: ' + str(extra_lesson_num) + '</b>', parse_mode='html')
         return True
 
     def teacher_command_processor(self, message, addr):
