@@ -1,4 +1,10 @@
+class SCOMMANDS:
+    create_a_chat = 'create_a_chat'
+    pass
+
+
 class UCOMMANDS:
+
     soft_commands = {'le_risposte': 'прислать ответы к последнему уроку',
                      'controlla'  : 'проверка урока преподавателем',
                      'prossima'   : 'получить еще один урок без очереди'

@@ -70,6 +70,7 @@ class SurveyBot(telebot.TeleBot):
         self.user_frozen = {}
 
         self.data_table = data_table
+
         self.survey_dict = self.data_table.getPupilStruct(sheetName='pupils')
         self.__invert_datasource_link(self.survey_dict)
 
@@ -722,7 +723,8 @@ class SurveyBot(telebot.TeleBot):
                     chat_id = uid
 
                 self.say_hello(uid, chat_id)
-                self.__savestatus(uid, self.user_cell_position[uid], [1], ['lessons_at_once'])
+                curr_lsn = int(self.data_table.getFieldValue(uid, 'curr_lesson')) +1
+                self.__savestatus(uid, self.user_cell_position[uid], [curr_lsn, 1], ['curr_lesson', 'lessons_at_once'])
                 self.cleanSchedule(uid)
         pass
 
@@ -761,7 +763,7 @@ class SurveyBot(telebot.TeleBot):
         except Exception as err:
             print(str(uid) + ': Error in start_lesson: ' + str(err))
             self.user_cell_position[uid] = addr
-            self.__savestatus(uid, self.user_cell_position[uid])
+            self.__savestatus(uid, self.user_cell_position[uid], [2, 1], ['curr_lesson', 'lessons_at_once'])
         pass
 
     def check_paymant(self, uid):
@@ -863,7 +865,7 @@ class SurveyBot(telebot.TeleBot):
             return False
 
         try:
-            if cmd == 'checked':
+            if cmd == 'controllato':
                 if tid in self.bot_state['chiefid']:
                     call_msg = self.data_table.getFieldValue(chat_id, 'call_message_id', key_column='chat_id')
                     if not(call_msg is None):
@@ -982,9 +984,7 @@ class SurveyBot(telebot.TeleBot):
 
         content = tp.parseMessageFast(msg)
         self.__createKeyFromContent(uid, _id, content['buttons'])
-        if 'lesson' in content:
-            self.data_table.setFieldValue(uid, int(content['lesson']), 'curr_lesson')
-        pass
+
 
     def say_hello(self, user_id, chat_id=-1):  # sending of a reply message
         print('sayhello')
@@ -1062,7 +1062,7 @@ class SurveyBot(telebot.TeleBot):
 
     def create_lesson_chat(self, pupil_user):
         participants = [self.user.username, *self.bot_state['chiefname'], pupil_user.username]
-        txt = '/create_a_channal;' + ';'.join(participants)
+        txt = '/' + commands.SCOMMANDS.create_a_chat + ';'.join(participants)
         self.send_message(self.bot_state['chiefid'], txt)
         pass
 

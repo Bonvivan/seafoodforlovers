@@ -225,15 +225,17 @@ class GoogleTableReader():
         rng = sheetName + '!' + cellRange
         print('setValue')
         body = {}
-        if type(value) == list():
-            if type(value[0]) == list():
+        if type(value) == type([]):
+            if type(value[0]) == type([]):
                 body['values'] = value
+            else:
+                body['values'] = [value]
         else:
-            body['values'] = [value]
+            body['values'] = [[value]]
 
         resp = None
         self.write_counter += 1
-        if value[0] is None or value[0]=='':
+        if value[0] is None or value[0] == '':
             resp = self.service.spreadsheets().values().clear(
                 spreadsheetId=self.spreadsheetId,
                 range=rng).execute()

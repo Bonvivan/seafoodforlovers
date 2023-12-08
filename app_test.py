@@ -148,7 +148,7 @@ async def normal_handler(event):
     msg_txt = event.message.to_dict()['message']
     print('New messega resiceved: ' + str(msg_txt))
     command = tp.parseCommand(msg_txt)
-    if command['request']==cm.COMMANDS.create_a_channal:
+    if command['request']==cm.SCOMMANDS.create_a_chat:
         try:
             admin_users = command['args'][:-1]
             pupil       = command['args'][ -1]
@@ -158,12 +158,7 @@ async def normal_handler(event):
             invite_link = await client(ExportChatInviteRequest(result.chats[0]))
             z = re.match(r'.*link=\'(https:\S+)\'.*', str(invite_link))
             invite_link = z.groups()[0]
-            #print('Invite link = ' + str(invite_link))
-            txt = '!Это чат для обучения итальянскому от Langusto!\n Он создан спеициально для пользователя ' + '@' + command['args'][-1] + '\n'
-            txt += 'Вот другие его участники:\n'
-            txt += '@' + command['args'][0] + ' - это трудолюбивый робот, который будет выдaвать тебе задания\n'
-            txt += '@' + command['args'][1] + ' - это я, Марго, твой преподаватель. Я буду проверять задания и помогать в обучении\n'
-            #await client.send_message(result.chats[0].id, txt) # sending message to a chat
+
             txt = '/tunnelmsg;' + str(pupil) + ';Это приглашение в чат для обучения итальянскому. Переходи в группу и начни свой первый урок! \n\n<b>Этот чат можете удалить, он больше не пригодится.</b>\n\n' + invite_link
             await asyncio.sleep(5)
             await client.send_message(botuser, txt, parse_mode='html') # sending a link to a user.
