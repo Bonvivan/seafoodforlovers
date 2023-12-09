@@ -4,7 +4,7 @@ import re
 
 TITLE_TOKEN = 'LEZIONE'
 NUM_START   = 3
-ROW_START   = 5
+ROW_START   = 3
 
 state_f = open('resources/tokens.json', 'r')
 tokens = json.load(state_f)
@@ -58,15 +58,17 @@ for row in old_lessons:
         row[1] += '🤖 Напишите мне в ответном сообщении <b>//controlla</b>, и я отправлю Ваш урок на проверку преподавателю.\n'
         row[1] += '[[//controlla;lezione_A1!C' + str(row_id) + ';/ucommand]]'
         row[1] += '\n🤖 Напишите <b>//prossima</b>, чтоб получить следующий урок вне очереди.\n'
-        row[1] += '[[//prossima;lezione_A1!C' + str(row_id+1) + ';/ucommand]]'
-    else:
-        row[1] += '\n--new-message--\n'
-        row[1] += '🤖 Отправьте мне в сообщении <b>//le_risposte</b>, и я пришлю Вам ответы\n'
-        row[1] += '[[//le_risposte;lezione_A1!B' + str(row_id) + ';/ucommand]]'
+        row[1] += '[[//prossima;lezione_A1!A' + str(row_id+1) + ';/ucommand]]'
+    if row[2] != '':
+        #row[1] += '\n--new-message--\n'
+        #row[1] += '🤖 Отправьте мне в сообщении <b>//le_risposte</b>, и я пришлю Вам ответы\n'
+        row[1] += '[[//le_risposte;lezione_A1!B' + str(row_id) + ';/tcommand]]'
     row.append('')
     row.append('')
     row[3] = 'Урок отправлен на проверку, спасибо! 🥳🥳🥳\n[[//controllato;lezione_A1!D' + str(row_id) + ';/tcommand]]'
-    row[4] = 'Урок проверен. 🥳🥳🥳\n[[Следующий урок;lezione_A1!A' + str(row_id+1) + ';/tomorrow]]'
+    row[3] += '[[//le_risposte;lezione_A1!B' + str(row_id) + ';/tcommand]]'
+    row[4] = 'Урок проверен. 🥳🥳🥳\n[[Следующий урок;lezione_A1!A' + str(row_id+1) + ';/tomorrow]]\n'
+
     old_lessons[ii] = row[1:5]
     ii+=1
 
