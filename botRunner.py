@@ -48,6 +48,7 @@ class SurveyBot(telebot.TeleBot):
     PRICE_1 = types.LabeledPrice(label="3 месяца обучения", amount=49000 * 100)  # в копейках (руб)
     PRICE_2 = types.LabeledPrice(label="6 месяцев обучения", amount=92000 * 100)  # в копейках (руб)
     PRICE_3 = types.LabeledPrice(label="12 месяцев обучения", amount=179000 * 100)  # в копейках (руб)
+    PRICE_4 = types.LabeledPrice(label="1 неделя обучения", amount=3900 * 100)  # в копейках (руб)
     PAYMENT_TOCKEN = ''
 
     initialisation = False
@@ -107,6 +108,9 @@ class SurveyBot(telebot.TeleBot):
                                                ['score','payment_info', 'payment_date', 'period', 'lesson_num', 'curr_lesson'])
             if message.successful_payment.invoice_payload=='mounth12':
                 self.data_table.setFieldValues(uid, ['0',str(message.successful_payment), str(datetime.utcnow().isoformat()), 360, 240, 0],
+                                               ['score','payment_info', 'payment_date', 'period', 'lesson_num', 'curr_lesson'])
+            if message.successful_payment.invoice_payload=='week':
+                self.data_table.setFieldValues(uid, ['0',str(message.successful_payment), str(datetime.utcnow().isoformat()), 8, 4, 0],
                                                ['score','payment_info', 'payment_date', 'period', 'lesson_num', 'curr_lesson'])
             #self.user_cell_position[uid] = 'teacher!A6'
             self.__savestatus(uid,self.user_cell_position[uid])
@@ -502,7 +506,7 @@ class SurveyBot(telebot.TeleBot):
                 for s in schedule:
                     rest += s[2]
 
-                txt += 'История замарозок курса: \n' + txt_sc
+                txt += 'История заморозок курса: \n' + txt_sc
                 if len(schedule)>0:
                     if schedule[-1][1]=='nowadays':
                         txt += "<b>Сейчас курс заморожен с " + str(schedule[-1][0]) + '</b>'
@@ -890,9 +894,10 @@ class SurveyBot(telebot.TeleBot):
         txt += 'Скидка равна <b>' + str(int(score)*10) + ' рублей</b>\n'
 
         titles = ['3 месяца за 49000р;',
-         '6 месяцев за 91000р',
-         '12 месяцев за 179000р']
-        for i in range(1,4):
+                  '6 месяцев за 91000р',
+                  '12 месяцев за 179000р',
+                  '1 неделя за 3900р']
+        for i in range(1,5):
             callback = 'pay;' + user_status + ';' + user_status + ';' + str(i)
             markup.add((types.InlineKeyboardButton(titles[i-1], callback_data=callback)))
 
@@ -1015,6 +1020,7 @@ class SurveyBot(telebot.TeleBot):
         if chat_id in self.tmp_msg_await:
             if self.tmp_msg_await[chat_id] == uid:
                 self.delete_message(chat_id=chat_id, message_id=message.message_id)
+                self.tmp_msg_await.pop(chat_id)
 
         addr = [None]
 
@@ -1212,7 +1218,7 @@ class SurveyBot(telebot.TeleBot):
                           currency="rub",
                           is_flexible=False,
                           prices=[special_price],
-                          start_parameter="one-month-subscription",
+                          start_parameter="three-month-subscription",
                           invoice_payload="mounth3",
                           photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
                           photo_height=478,
@@ -1231,7 +1237,7 @@ class SurveyBot(telebot.TeleBot):
                           currency="rub",
                           is_flexible=False,
                           prices=[special_price],
-                          start_parameter="one-month-subscription",
+                          start_parameter="six-month-subscription",
                           invoice_payload="mounth6",
                           photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
                           photo_height=478,
@@ -1250,8 +1256,27 @@ class SurveyBot(telebot.TeleBot):
                           currency="rub",
                           is_flexible=False,
                           prices=[special_price],
-                          start_parameter="one-month-subscription",
+                          start_parameter="one-year-subscription",
                           invoice_payload="mounth12",
+                          photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
+                          photo_height=478,
+                          photo_width=512,
+                          photo_size=512,
+                          reply_markup=_markup)
+        elif subscribe_id == 4:
+            special_price = self.PRICE_4
+            special_price.amount = special_price.amount - discont*10
+            _markup.add(types.InlineKeyboardButton('Оплатить ' + str(int(special_price.amount/100)) + ' руб', pay=True))
+            _markup.add(types.InlineKeyboardButton('Назад', callback_data=callback))
+            self.send_invoice(chat_id,
+                          title="1 неделя обучения",
+                          description="Для скупых.",
+                          provider_token=self.PAYMENT_TOCKEN,
+                          currency="rub",
+                          is_flexible=False,
+                          prices=[special_price],
+                          start_parameter="one-week-subscription",
+                          invoice_payload="week",
                           photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
                           photo_height=478,
                           photo_width=512,
@@ -1315,6 +1340,10 @@ class SurveyBot(telebot.TeleBot):
                 pass
             if sp == '/pay3':
                 callback = 'pay;' + user_status + ';' + addr + ';3'
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+                pass
+            if sp == '/pay4':
+                callback = 'pay;' + user_status + ';' + addr + ';4'
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
                 pass
             if sp == '/edit':
