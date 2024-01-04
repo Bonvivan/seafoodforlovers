@@ -36,6 +36,7 @@ class SurveyBot(telebot.TeleBot):
     user_cell_position = {}
     user_chat_id = {}
     user_command = {}
+    conditions   = {}
     teacher_command = {}
     tmp_msg_await   = {}
     tmp_msg_kill    = {}
@@ -231,8 +232,14 @@ class SurveyBot(telebot.TeleBot):
 
             if uid in self.user_chat_id:
                 if self.user_chat_id[uid]!=-1 and self.user_chat_id[uid]!=cid:
-                    self.send_message(cid, 'Перейдите в обучающий чат, /status чтоб получить ссылку.')
-                    return None
+                    try:
+                        link = self.create_chat_invite_link(int(cid)).invite_link
+                        self.send_message(cid, 'Перейдите в обучающий чат: ' + link)
+                        return None
+                    except:
+                        self.user_chat_id[uid] = -1
+                        self.data_table.setFieldValue(uid, -1, 'chat_id')
+                        pass
 
             self.data_table.refresh()
             user = self.__check_user(message.from_user.id)
@@ -447,6 +454,12 @@ class SurveyBot(telebot.TeleBot):
 
             txt = ''
             chat_id = int(self.user_chat_id[uid])
+            if cid != chat_id:
+                try:
+                    link = self.create_chat_invite_link(int(cid)).invite_link
+                    self.send_message(cid, "Перейдите в обучающий чат: " + link)
+                except:
+                    pass
             when = datetime.fromisoformat(user_status['date_start'])
             txt += "Начало обучения " + str(when.date())
             if 'curr_lesson' in user_status.keys() and user_status['curr_lesson'] != '':
@@ -652,6 +665,28 @@ class SurveyBot(telebot.TeleBot):
                 print("goahead: " + str(err))
                 pass
 
+        @self.callback_query_handler(func=lambda c: c.data.startswith('chk'))
+        def check_callback_button(callback_query: types.CallbackQuery):
+            print('check_callback_button')
+            callback_query.message.from_user.is_bot = False
+            try:
+                self.answer_callback_query(callback_query.id)
+            except:
+                pass
+            cid = callback_query.message.chat.id
+            data = callback_query.data.split(';')
+            cell = self.data_dstn[data[2]]
+            try:
+                self.edit_message_reply_markup(cid, message_id=callback_query.message.message_id, reply_markup='')
+            except:
+                pass
+            if(self.data_table.checkFieldValue(data[1], cell)):
+                self.send_message(cid, '✅ ' + data[1])
+            else:
+                self.send_message(cid, '🔴 ' + data[1])
+            goback_callback_button(callback_query)
+            pass
+
         @self.callback_query_handler(func=lambda c: c.data.startswith('unch'))
         @self.single_user_decorator
         def goback_callback_button(callback_query: types.CallbackQuery):
@@ -672,6 +707,19 @@ class SurveyBot(telebot.TeleBot):
         def goahead_callback_button(callback_query: types.CallbackQuery):
             callback_query.message.from_user.is_bot = False
             goback_callback_button(callback_query)
+
+        @self.callback_query_handler(func=lambda c: c.data.startswith('tch'))
+        def goahead_callback_button(callback_query: types.CallbackQuery):
+            callback_query.message.from_user.is_bot = False
+            try:
+                self.answer_callback_query(callback_query.id)
+            except:
+                pass
+            if callback_query.from_user.id in self.bot_state['chiefid']:
+                pupil_id = self.__find_keys(self.user_chat_id, callback_query.message.chat.id)
+                if pupil_id != []:
+                    self.data_table.setFieldValue(pupil_id[0], callback_query.data.split(';')[1], 'level')
+                    goback_callback_button(callback_query)
 
 
     def send_message(self, *args, **kwargs):
@@ -752,6 +800,7 @@ class SurveyBot(telebot.TeleBot):
         pass
 
     def init_state(self, _id=-1):
+        print('init_state')
         all_pupils = self.data_table.getAllValue('pupils')
         id_index = all_pupils[0].index('id')
         chat_id_index = all_pupils[0].index('chat_id')
@@ -784,7 +833,8 @@ class SurveyBot(telebot.TeleBot):
 
             try:
                 sch_data = schedule[i].split(';')
-                self.schedule[ids[i]] = {'time': datetime.fromisoformat(sch_data[0]), 'cell': sch_data[1]}
+                if not(sch_data[0] == ''):
+                    self.schedule[ids[i]] = {'time': datetime.fromisoformat(sch_data[0]), 'cell': sch_data[1]}
             except Exception as err:
                 print('Err in time decoding: init_state:' + str(err))
                 pass
@@ -830,38 +880,55 @@ class SurveyBot(telebot.TeleBot):
 
     def start_lesson(self, uid, chat_id, message):
         print('start_lesson')
-        self.send_chat_action(chat_id, 'typing')
+
+        result_A1 = self.data_table.getFieldValue(uid, 'result_A1')
+        result_A2 = self.data_table.getFieldValue(uid, 'result_A2')
+        result_B1 = self.data_table.getFieldValue(uid, 'result_B1')
+        result_B2 = self.data_table.getFieldValue(uid, 'result_B2')
+
+        txt  = '🤖 это наш чат для обучения итальянскому от <b>Langusto!</b>\n'
+        if int(result_A1)<=7:
+            self.data_table.setFieldValue(uid, 'A1', 'level')
+
+        self.data_table.setFieldValues(uid, [1, 1], ['curr_lesson', 'lessons_at_once'])
         level = self.data_table.getFieldValue(uid, 'level')
-        self.user_chat_id[uid] = int(chat_id)
-        dptr = self.user_cell_position[uid]
-        addr = dptr
-        if level == 'A1':
+        if level is None or level == '':
+            txt += 'Сейчас мы посмотрим ваш тест, и преподаватель предложит, с чего лучше начать!\n'
+            txt += 'Результат теста: \n'
+            txt += 'A1: ' + result_A1 + '/12\n'
+            txt += 'A2: ' + result_A2 + '/12\n'
+            txt += 'B1: ' + result_B1 + '/12\n'
+            txt += 'B2: ' + result_B2 + '/12\n'
+
+            txt += '\nЭти кнопки для преподавателя, исли их нажимать, ничего не произойдет.'
+            txt += '\n'
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            callback = 'tch;' + 'A1' + ';' + self.user_cell_position[uid] + ';' + 'lezione_A1!A1'
+            markup.add(types.InlineKeyboardButton('A1', callback_data=callback))
+            callback = 'tch;' + 'A2' + ';' + self.user_cell_position[uid] + ';' + 'lezione_A2!A1'
+            markup.add(types.InlineKeyboardButton('A2', callback_data=callback))
+            callback = 'tch;' + 'B1' + ';' + self.user_cell_position[uid] + ';' + 'lezione_B1!A1'
+            markup.add(types.InlineKeyboardButton('B1', callback_data=callback))
+            callback = 'tch;' + 'B2' + ';' + self.user_cell_position[uid] + ';' + 'lezione_B2!A1'
+            markup.add(types.InlineKeyboardButton('B2', callback_data=callback))
+            self.send_message(chat_id, txt, parse_mode='html', reply_markup=markup)
+        elif level == 'A1':
+            message.from_user.id = uid
+            message.chat.id = chat_id
+
             addr = 'lezione_A1!A1'
-        elif level == 'A2':
-            addr = 'lezione_A2!A1'
-        elif level == 'B1':
-            addr = 'lezione_B1!A1'
-        elif level == 'B2':
-            addr = 'lezione_B2!A1'
-        else:
-            return None
-        message.from_user.id = uid
-        message.chat.id = chat_id
+            txt += 'Через минуту, здесь появится первый урок...\n'
+            txt += 'Да, не через секунду, а именно через МИНУТУ!\n'
+            txt += '\n'
+            self.send_message(chat_id, txt, parse_mode='html')
+            try:
+                self.goahead(message,  self.user_cell_position[uid], addr)
+            except Exception as err:
+                print(str(uid) + ': Error in start_lesson: ' + str(err))
+                self.user_cell_position[uid] = addr
+                self.__savestatus(uid, self.user_cell_position[uid])
+            pass
 
-        txt = '🤖 это наш чат для обучения итальянскому от <b>Langusto!</b>\n'
-        txt += 'Через минуту, здесь появится первый урок...\n'
-        txt += 'Да, не через секунду, а именно через МИНУТУ!\n'
-        txt += '\n'
-
-        self.send_message(chat_id, txt, parse_mode='html')
-
-        try:
-            self.goahead(message, dptr, addr)
-            self.data_table.setFieldValues(uid, [1,1], ['curr_lesson', 'lessons_at_once'])
-        except Exception as err:
-            print(str(uid) + ': Error in start_lesson: ' + str(err))
-            self.user_cell_position[uid] = addr
-            self.__savestatus(uid, self.user_cell_position[uid])
         pass
 
     def check_paymant(self, uid):
@@ -904,6 +971,30 @@ class SurveyBot(telebot.TeleBot):
         self.send_message(cid, txt, reply_markup=markup, parse_mode='html')
 
         return True
+
+    def conditon_processor(self, message, addr):
+        chat_id = message.chat.id
+        conditions = []
+        if chat_id in self.conditions:
+            conditions = self.conditions[chat_id]
+        for uc in conditions:
+            if(uc[0][:5] == 'check'):
+                cnt = uc[0]
+                ref = re.findall('check:\?\?\?(.+)\?\?\?', cnt)[0]
+                val = self.data_table.getFieldValue(message.from_user.id, ref)
+                result = eval(cnt[6:].replace('???' + ref + '???', val).strip())
+                if result:
+                    return None
+                else:
+                    addr[0] = uc[1]
+            pass
+        pass
+
+        for uc in conditions:
+            if(uc[0][:3] == 'set'):
+                pass
+            pass
+        pass
 
     def user_command_processor(self, message, addr):
         uid = message.from_user.id
@@ -1059,6 +1150,11 @@ class SurveyBot(telebot.TeleBot):
         print('goahead')
         uid = message.from_user.id
         chat_id = message.chat.id
+
+        addrl = [addr]
+        self.conditon_processor(message, addrl)
+        addr = addrl[0]
+
         if 'chiefid' in self.bot_state and message.from_user.id in self.bot_state['chiefid']:
             pupil_id = self.__find_keys(self.user_chat_id, chat_id)
             if not pupil_id:
@@ -1311,6 +1407,7 @@ class SurveyBot(telebot.TeleBot):
 
         self.user_command[id] = []#.pop(id, None)
         self.teacher_command[chat_id] = []#.pop(chat_id, None)
+        self.conditions[chat_id] = []
 
         btns = []
         user_status = self.user_cell_position[id]
@@ -1360,6 +1457,15 @@ class SurveyBot(telebot.TeleBot):
                 pass
             if sp == '/delete_me':
                 pass
+            if sp == '/break':
+                btns.append(None)
+                self.conditions[chat_id].append(['check:' + title, addr])
+                pass
+
+            if sp == '/set':
+                btns.append(None)
+                self.conditions[chat_id].append(['set;' + title, addr])
+                pass
 
             if sp == '/ucommand':
                 cmd = self.__extract_command(title)
@@ -1374,6 +1480,9 @@ class SurveyBot(telebot.TeleBot):
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
             if sp == '/back':
                 callback = 'unch;' + title + ';' + user_status + ';' + addr
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+            if sp == '/check':
+                callback = 'chk;' + title + ';' + user_status + ';' + addr
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
             if sp is None or sp == '':
                 callback = 'chng;' + title + ';' + user_status + ';' + addr
@@ -1425,7 +1534,7 @@ class SurveyBot(telebot.TeleBot):
     def __invert_datasource_link(self, data_structure):
         for k in data_structure.keys():
             f = data_structure[k]
-            result = re.match("(\w+![AZ]\d)", f['source'])
+            result = re.match("(\w+![A-Z]+\d+)", f['source'])
             if not (result is None):
                 self.data_dstn[result.group(1)] = k
             pass

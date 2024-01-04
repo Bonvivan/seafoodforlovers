@@ -121,18 +121,10 @@ async def normal_handler(event):
         superbot_state = json.load(state_f)
         superbot_state = tp.correct_time(superbot_state)
 
-        #event_dict = decodeLinkEvent(event) # reading of the event string to create a dictionary
-
         if event.user_added:
             for uid in event.input_users:
                 msg = await client.kick_participant(event.chat_id, uid.user_id)
             return None
-
-        '''
-        me = await client.get_me()
-        if int(event.action_message.action.inviter_id) != int(me.id):
-            msg = await client.kick_participant(event.chat_id, event.user.id)
-        '''
 
         for ch in superbot_state['tmp_chat_id']:
             if -int(ch['id'])==int(event.chat_id):
