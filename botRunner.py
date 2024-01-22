@@ -141,6 +141,48 @@ class SurveyBot(telebot.TeleBot):
             uid = self.__find_keys(self.user_chat_id, cid)
             self.say_hello(uid, cid)
 
+        @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('/paid', m.text) == len('/paid'))
+        @self.single_user_decorator
+        def paid_command(message):
+            print('paid_command')
+            if not (message.from_user.id in self.bot_state['chiefid']):
+                return None
+            cid = message.chat.id
+            info = message.text.split(';')
+
+            period = 365
+            lnum = int(message.text.split(';')[1])
+            if len(info)>2:
+                period = int(message.text.split(';')[2])
+
+            uid = self.__find_keys(self.user_chat_id, cid)[0]
+            self.data_table.setFieldValues(uid,
+                                           ['0', 'online_payment', str(datetime.utcnow().isoformat()), period,
+                                            lnum, 0],
+                                           ['score', 'payment_info', 'payment_date', 'period', 'lesson_num',
+                                            'curr_lesson'])
+            call_msg = self.data_table.getFieldValue(cid, 'paid_call', key_column='chat_id')
+            if call_msg=='' or call_msg is None:
+                self.send_message(cid,'Оплата проверена! \n/status чтоб узнать подробности. \n/start чтоб продолжить.')
+                return None
+
+            call_chat_id, call_msg_id, when = call_msg.split(';')
+            try:
+                chat_ids = call_chat_id.split(',')
+                msg_ids  = call_msg_id .split(',')
+                uname = self.data_table.getFieldValue(uid, 'username')
+                for c_id, m_id in zip(chat_ids, msg_ids):
+                    self.edit_message_text('Оплата произведена: ' + str(uid) + ' username:' + str(uname) +
+                                           '; lessons: ' + str(lnum) + '; preiod: ' + str(period),
+                                           chat_id=int(c_id), message_id=int(m_id))
+                self.send_message(c_id,'Оплата проверена! \n/status чтоб узнать подробности. \n/start чтоб продолжить.')
+                #self.say_hello(c_id, self.__find_keys(self.user_chat_id, cid)[0])
+            except Exception as err:
+                print('ERROR: edit_message_text(Оплата произведена...' + str(err))
+                pass
+
+            self.say_hello(uid, cid)
+
         @self.message_handler(
             func=lambda m: tp.MSG_TYPE.compare('/savechannel', m.text) == len('/savechannel'))  # TODO: move to commads
         @self.single_user_decorator
@@ -179,7 +221,7 @@ class SurveyBot(telebot.TeleBot):
                 self.start_lesson(int(uid), cid, message)
             except Exception as err:
                 self.data_table.critical_flag = False
-                self.send_message(uid,
+                self.send_message(cid,
                                   "Что-то пошло не так. Наберите /call чтоб сообщить об этом преподавателю")
                 print('new_chat_event: ' + str(err))
             pass
@@ -240,8 +282,18 @@ class SurveyBot(telebot.TeleBot):
                         self.user_chat_id[uid] = -1
                         self.data_table.setFieldValue(uid, -1, 'chat_id')
                         pass
+                elif uid!=cid and self.user_chat_id[uid]==-1: #TODO: make by /savechannel route, not by lesson
+                    try:
+                        self.get_chat_member(cid, uid)
+                        now = datetime.utcnow().date()
+                        data_table.setFieldValues(int(uid), [cid, now.isoformat()], ['chat_id', 'date_start'])
+                        self.user_chat_id[int(uid)] = cid
+                        self.start_lesson(int(uid), cid, message)
+                    except:
+                        return None
+                        pass
 
-            self.data_table.refresh()
+            self.data_table.allUpdate()
             user = self.__check_user(message.from_user.id)
             if (user == None):
                 uid = message.from_user.id
@@ -579,6 +631,35 @@ class SurveyBot(telebot.TeleBot):
                 pass
             pass
 
+        @self.callback_query_handler(func=lambda c: c.data.startswith('paid'))
+        @self.single_user_decorator
+        def paid_hendler(callback_query: types.CallbackQuery):
+            self.answer_callback_query(callback_query.id)
+            uid = callback_query.from_user.id
+            cid = callback_query.message.chat.id
+            if uid in self.bot_state.get('chiefid',[]):
+                pass
+
+            link = self.create_chat_invite_link(int(cid)).invite_link
+            result = self.send_message(self.bot_state['chiefid'], 'ОПЛАТА В ЧАТЕ, ГУЛЯЙ РВАНИНА! \n' + link)
+
+            now = datetime.utcnow()
+            all_chat_ids = ','.join([str(res.chat.id) for res in result])
+            all_msg_ids  = ','.join([str(res.message_id) for res in result])
+
+            self.data_table.setFieldValue(uid,
+                                          str(all_chat_ids) + ';' + str(all_msg_ids) + ';' + str(
+                                              now.isoformat()), 'paid_call')
+
+            try:
+                self.edit_message_reply_markup(callback_query.message.chat.id,
+                                               message_id=callback_query.message.message_id, reply_markup='')
+            except:
+                pass
+
+            result = self.send_message(cid, 'Уведомление отправлено, cейчас преподаватель проверит оплату и активирует курс!')
+            pass
+
         @self.callback_query_handler(func=lambda c: c.data.startswith('to_lsn'))
         @self.single_user_decorator
         def lesson_command(callback_query: types.CallbackQuery):
@@ -592,6 +673,8 @@ class SurveyBot(telebot.TeleBot):
             else:
                 if (self.__check_user_info(callback_query.from_user.id)):
                     self.create_lesson_chat(callback_query.from_user)
+                    self.user_cell_position[callback_query.from_user.id] = callback_query.data.split(';')[2]
+                    self.data_table.setFieldValue(callback_query.from_user.id, self.user_cell_position[callback_query.from_user.id], 'status')
                 elif self.user_chat_id[callback_query.from_user.id] != -1:
                     chat_id = int(self.user_chat_id[callback_query.from_user.id])
                     link = self.create_chat_invite_link(chat_id).invite_link
@@ -645,7 +728,6 @@ class SurveyBot(telebot.TeleBot):
             self.answer_callback_query(callback_query.id)
             print(callback_query)
             print('Sending request to save user')
-            uid = callback_query.message.from_user.id
             if(callback_query.message.from_user.username == ''):
                 self.send_message(callback_query.message.chat.id, 'У вас не задано имя пользователя в Telegram. Пожалуйста задайте имя пользователя, потом наберите /start, чтоб продолжить\n')
                 return None
@@ -708,8 +790,29 @@ class SurveyBot(telebot.TeleBot):
             callback_query.message.from_user.is_bot = False
             goback_callback_button(callback_query)
 
-        @self.callback_query_handler(func=lambda c: c.data.startswith('tch'))
+        @self.callback_query_handler(func=lambda c: c.data.startswith('url'))
         def goahead_callback_button(callback_query: types.CallbackQuery):
+            callback_query.message.from_user.is_bot = False
+            goback_callback_button(callback_query)
+
+        @self.callback_query_handler(func=lambda c: c.data.startswith('nextl'))
+        def goahead_callback_button(callback_query: types.CallbackQuery):
+            callback_query.message.from_user.is_bot = False
+            try:
+                self.answer_callback_query(callback_query.id)
+            except:
+                pass
+            uid = callback_query.from_user.id
+            if not(self.check_paymant(uid)):
+                try:
+                    self.edit_message_reply_markup(message_id=callback_query.message.chat.id, reply_markup='')
+                except:
+                    pass
+                return None
+            goback_callback_button(callback_query)
+
+        @self.callback_query_handler(func=lambda c: c.data.startswith('tch'))
+        def startlsn_callback_button(callback_query: types.CallbackQuery):
             callback_query.message.from_user.is_bot = False
             try:
                 self.answer_callback_query(callback_query.id)
@@ -768,9 +871,9 @@ class SurveyBot(telebot.TeleBot):
         _id = cid
         msg = self.data_table.getValueFromStr(cell)[0][0]
         content = tp.parseMessage(msg, '')
-        msgs = content['content']
-        for i in range(len(msgs)):
-            m = msgs[i]
+        #msgs = content['content']
+        for i in range(len(content)):
+            m = content[i]['content']
             mrk = None
 
             mtype = m[1]
@@ -881,13 +984,60 @@ class SurveyBot(telebot.TeleBot):
     def start_lesson(self, uid, chat_id, message):
         print('start_lesson')
 
-        result_A1 = self.data_table.getFieldValue(uid, 'result_A1')
-        result_A2 = self.data_table.getFieldValue(uid, 'result_A2')
-        result_B1 = self.data_table.getFieldValue(uid, 'result_B1')
-        result_B2 = self.data_table.getFieldValue(uid, 'result_B2')
+        self.data_table.allUpdate()
 
-        txt  = '🤖 это наш чат для обучения итальянскому от <b>Langusto!</b>\n'
-        if int(result_A1)<=7:
+        record   = self.data_table.getPupilStatus(uid)
+        reference = self.data_table.getPupilStruct(sheetName='test_results', rng='C1:BZ4')
+
+        result_A1 = record.pop('result_A1', 0)
+        result_A2 = record.pop('result_A2', 0)
+        result_B1 = record.pop('result_B1', 0)
+        result_B2 = record.pop('result_B2', 0)
+
+        if result_A1 =='' or result_A1 is None:
+            result_A1 = 0
+        if result_A2 =='' or result_A2 is None:
+            result_A2 = 0
+        if result_B1 =='' or result_B1 is None:
+            result_B1 = 0
+        if result_B2 =='' or result_B2 is None:
+            result_B2 = 0
+
+        mistakes = []
+        saitpas = []
+
+        answers = {}
+
+        for f in reference.keys():
+            if re.match('[A|B][1|2]_\d+', f):
+                answers[f] = record.get(f,'')
+
+        questions_addr = []
+        for a in answers:
+            questions_addr.append(reference[a]['source'])
+
+        questions = self.data_table.getValuesFromStr(questions_addr)
+
+        for i in range(len(questions)):
+            questions[i] =  tp.getMessageText(questions[i])[0]
+
+
+        for a,q in zip(answers, questions):
+            if answers[a].strip() == 'не знаю':
+                saitpas.append(q + '\n' + reference[a]['regex'])
+                answers[a] = ''
+
+        for a,q in zip(answers, questions):
+            r = reference.pop(a, '')
+            if r == '':
+                continue
+            if re.match(r['regex'], answers[a]) is None and answers[a] != '':
+                mistakes.append(
+                    q + '\n' + '<strike>' + answers[a] + '</strike> ' + '\n' + r['regex'])
+
+
+        txt = '🤖 это наш чат для обучения итальянскому от <b>Langusto!</b>\n'
+        if int(result_A1) == 0:
             self.data_table.setFieldValue(uid, 'A1', 'level')
 
         self.data_table.setFieldValues(uid, [1, 1], ['curr_lesson', 'lessons_at_once'])
@@ -895,40 +1045,54 @@ class SurveyBot(telebot.TeleBot):
         if level is None or level == '':
             txt += 'Сейчас мы посмотрим ваш тест, и преподаватель предложит, с чего лучше начать!\n'
             txt += 'Результат теста: \n'
-            txt += 'A1: ' + result_A1 + '/12\n'
-            txt += 'A2: ' + result_A2 + '/12\n'
-            txt += 'B1: ' + result_B1 + '/12\n'
-            txt += 'B2: ' + result_B2 + '/12\n'
+            txt += 'A1: ' + result_A1 + '/11\n'
+            txt += 'A2: ' + result_A2 + '/13\n'
+            txt += 'B1: ' + result_B1 + '/13\n'
+            txt += 'B2: ' + result_B2 + '/11\n'
+            self.send_message(chat_id, txt, parse_mode='html')
+            txt = ''
+            if len(mistakes) > 0:
+                self.send_message(chat_id, '🔶Ошибки:🔶 ', parse_mode='html')
+                txt = '\n\n'.join(mistakes)
+                self.send_message(chat_id, txt, parse_mode='html')
+
+            if len(saitpas) > 0:
+                self.send_message(chat_id, '🔷Вопросы без ответов:🔷 ', parse_mode='html')
+                txt = '\n\n'.join(saitpas)
+                self.send_message(chat_id, txt, parse_mode='html')
+
+            txt = ''
 
             txt += '\nЭти кнопки для преподавателя, исли их нажимать, ничего не произойдет.'
             txt += '\n'
             markup = types.InlineKeyboardMarkup(row_width=2)
-            callback = 'tch;' + 'A1' + ';' + self.user_cell_position[uid] + ';' + 'lezione_A1!A1'
+            callback = 'tch;' + 'A1' + ';' + self.user_cell_position[uid] + ';' + 'intro!A7'
             markup.add(types.InlineKeyboardButton('A1', callback_data=callback))
-            callback = 'tch;' + 'A2' + ';' + self.user_cell_position[uid] + ';' + 'lezione_A2!A1'
+            callback = 'tch;' + 'A2' + ';' + self.user_cell_position[uid] + ';' + 'intro!B7'
             markup.add(types.InlineKeyboardButton('A2', callback_data=callback))
-            callback = 'tch;' + 'B1' + ';' + self.user_cell_position[uid] + ';' + 'lezione_B1!A1'
+            callback = 'tch;' + 'B1' + ';' + self.user_cell_position[uid] + ';' + 'intro!C7'
             markup.add(types.InlineKeyboardButton('B1', callback_data=callback))
-            callback = 'tch;' + 'B2' + ';' + self.user_cell_position[uid] + ';' + 'lezione_B2!A1'
+            callback = 'tch;' + 'B2' + ';' + self.user_cell_position[uid] + ';' + 'intro!D7'
             markup.add(types.InlineKeyboardButton('B2', callback_data=callback))
             self.send_message(chat_id, txt, parse_mode='html', reply_markup=markup)
         elif level == 'A1':
             message.from_user.id = uid
             message.chat.id = chat_id
 
-            addr = 'lezione_A1!A1'
+            addr = 'intro!A7'
+            '''
             txt += 'Через минуту, здесь появится первый урок...\n'
             txt += 'Да, не через секунду, а именно через МИНУТУ!\n'
             txt += '\n'
+            '''
             self.send_message(chat_id, txt, parse_mode='html')
             try:
-                self.goahead(message,  self.user_cell_position[uid], addr)
+                self.goahead(message, self.user_cell_position[uid], addr)
             except Exception as err:
                 print(str(uid) + ': Error in start_lesson: ' + str(err))
                 self.user_cell_position[uid] = addr
                 self.__savestatus(uid, self.user_cell_position[uid])
             pass
-
         pass
 
     def check_paymant(self, uid):
@@ -944,12 +1108,24 @@ class SurveyBot(telebot.TeleBot):
             self.send_message(self.user_chat_id[uid], 'Срок прохождения курса истек.')
             self.data_table.setFieldValue(uid, stat['curr_lesson'], 'lesson_num')
 
-        if stat['curr_lesson']>=stat['lesson_num']:
+        if int(stat['curr_lesson'])>=int(stat['lesson_num']):
             self.send_message(self.user_chat_id[uid], 'Для перехода к следующему уроку нужно оплатить курс.')
-            self.pay_request(uid, stat['score'])
+            self.pay_online_request(uid, stat.get('score',0))
             return False
         return True
 
+    def pay_online_request(self, uid, score = 0):
+        print('pay_online_request')
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        user_status = self.user_cell_position[uid]
+        cid = self.user_chat_id[uid]
+        txt  = 'Для оплаты перейдите по ссылке:'
+        url = 'https://langusto.online/zapis2024'
+        markup.add((types.InlineKeyboardButton('Оплатить курс 🤑', url=url)))
+        callback = 'paid;' + user_status + ';' + user_status + ';'
+        markup.add((types.InlineKeyboardButton('Оплачено👌', callback_data=callback)))
+        self.send_message(cid, txt, reply_markup=markup, parse_mode='html')
+        return True
 
     def pay_request(self, uid, score = 0):
         print('pay_request')
@@ -1203,7 +1379,7 @@ class SurveyBot(telebot.TeleBot):
         try:
             msg = self.data_table.getValueFromStr(self.user_cell_position[uid])[0][0]
         except Exception as err:
-            self.send_message(uid, 'Что-то сломалось(( Когда починят, придет уведомление')
+            self.send_message(_id, 'Что-то сломалось(( Когда починят, придет уведомление')
             if uid in self.user_cell_position:
                 print('Error in table reading, desired range: ' + self.user_cell_position[uid])
             else:
@@ -1212,7 +1388,8 @@ class SurveyBot(telebot.TeleBot):
             return None
 
         content = tp.parseMessageFast(msg)
-        self.__createKeyFromContent(uid, _id, content['buttons'])
+        for c in content:
+            self.__createKeyFromContent(uid, _id, c['buttons'])
 
 
     def say_hello(self, user_id, chat_id=-1):  # sending of a reply message
@@ -1224,7 +1401,7 @@ class SurveyBot(telebot.TeleBot):
         _id = chat_id
         self.send_chat_action(_id, 'typing')
 
-        markup = types.InlineKeyboardMarkup(row_width=2)  # , one_time_keyboard=True, resize_keyboard=True)
+        markup = []  # , one_time_keyboard=True, resize_keyboard=True)
         question_text = ['']
         try:
             msg = self.data_table.getValueFromStr(self.user_cell_position[uid])[0][0]
@@ -1246,16 +1423,21 @@ class SurveyBot(telebot.TeleBot):
                 past_answer = '\n<i>' + content.strip() + '</i>'
 
         content = tp.parseMessage(msg, past_answer)
-        btns = self.__createKeyFromContent(uid, _id, content['buttons'])
-        for i in range(len(btns)):
-            if not (btns[i] is None):
-                markup.add(btns[i])
-                pass
+        for i in range(len(content)):
+            content[i]['buttons'] = self.__createKeyFromContent(uid, _id, content[i]['buttons'])
 
-        msgs = content['content']
-        for i in range(len(msgs)):
-            m = msgs[i]
-            mrk = markup if i == len(msgs) - 1 else None
+        for i in range(len(content)):
+            if len(content[i]['buttons'])>0:
+                markup.append(types.InlineKeyboardMarkup(row_width=2))
+                for b in content[i]['buttons']:
+                    markup[-1].add(b)
+            else:
+                markup.append(None)
+
+        #msgs = content['content']
+        for i in range(len(content)):
+            m   = content[i]['content']
+            mrk =  markup[i]
 
             mtype = m[1]
             if m[0] == '':
@@ -1270,6 +1452,9 @@ class SurveyBot(telebot.TeleBot):
                         corr_m = corr_m.replace('???' + f + '???', str(val))
                     self.send_message(_id, corr_m, reply_markup=mrk,
                                       parse_mode='html')  # TODO define abstract class MSG sending an apppropriate type of msg (method send())
+                elif mtype == tp.MSG_TYPE.gallery:
+                    gal = [telebot.types.InputMediaPhoto(p) for p in content[i]['content'][0]]
+                    self.send_media_group(_id, gal)
                 elif mtype == tp.MSG_TYPE.image:
                     self.send_photo(_id, m[0], reply_markup=mrk)
                 elif mtype == tp.MSG_TYPE.video:
@@ -1458,22 +1643,22 @@ class SurveyBot(telebot.TeleBot):
             if sp == '/delete_me':
                 pass
             if sp == '/break':
-                btns.append(None)
+                #btns.append(None)
                 self.conditions[chat_id].append(['check:' + title, addr])
                 pass
 
             if sp == '/set':
-                btns.append(None)
+                #btns.append(None)
                 self.conditions[chat_id].append(['set;' + title, addr])
                 pass
 
             if sp == '/ucommand':
                 cmd = self.__extract_command(title)
-                btns.append(None)
+                #btns.append(None)
                 self.user_command[id].append([cmd, addr])
             if sp == '/tcommand':
                 cmd = self.__extract_command(title)
-                btns.append(None)
+                #btns.append(None)
                 self.teacher_command[chat_id].append([cmd, addr])
             if sp == '/tomorrow':
                 callback = 'tomorrow;' + title + ';' + user_status + ';' + addr
@@ -1481,9 +1666,14 @@ class SurveyBot(telebot.TeleBot):
             if sp == '/back':
                 callback = 'unch;' + title + ';' + user_status + ';' + addr
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+            if sp == '/nextl':
+                callback = 'nextl;' + title + ';' + user_status + ';' + addr
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
             if sp == '/check':
                 callback = 'chk;' + title + ';' + user_status + ';' + addr
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+            if sp == '/url':
+                btns.append(types.InlineKeyboardButton(title, url=addr))
             if sp is None or sp == '':
                 callback = 'chng;' + title + ';' + user_status + ';' + addr
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
@@ -1492,22 +1682,27 @@ class SurveyBot(telebot.TeleBot):
     def __check_user(self, id):
         pupils = self.data_table.getAllPupilColumns(['id', 'status', 'chat_id'])
         id = str(id)
-        if id in str(pupils[0]):
+        if id in pupils[0]:
             j = pupils[0].index(id)
             return {int(id): pupils[1][j]}, {int(id): int(pupils[2][j])}
         else:
             return None
 
     def __check_user_info(self, id):  # TODO Add checking of fullness of the user info
-        record = self.data_table.getAllFieldValue(id)
-        for h, u in zip(record[2], record[-1]):
-            if int(h) == 1:
-                if u == '':
-                    return False
-        ind = record[0].index('chat_id')
+        header, record = self.data_table.getAllFieldValue(id)
+        for h, u in zip(header[2], record):
+            try:
+                if int(h) == 1:
+                    pass
+                    if u == '' or u == None:
+                        return False
+            except:
+                continue
+
+        ind = header[0].index('chat_id')
         try:
-            if int(record[-1][ind]) != -1:
-                self.user_chat_id[id] = int(record[-1][ind])
+            if int(record[ind]) != -1:
+                self.user_chat_id[id] = int(record[ind])
                 return False
         except:
             pass
@@ -1519,13 +1714,11 @@ class SurveyBot(telebot.TeleBot):
         for k in pupil_dict.keys():
             if k in user_tmp_dict.keys():
                 user_dict[k] = user_tmp_dict[k]
-            else:
-                user_dict[k] = ''
-            pass
+
         user_dict['status']  = self.user_cell_position[user_dict['id']]
         user_dict['chat_id'] = -1
         user_dict['score']   = 100
-        user_dict['lesson_num'] = 2
+        user_dict['lesson_num'] = 0
         user_dict['lessons_at_once'] = 0
         self.user_chat_id[int(user_dict['id'])] = -1
         self.user_frozen [int(user_dict['id'])] = False

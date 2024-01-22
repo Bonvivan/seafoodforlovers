@@ -10,6 +10,7 @@ class MSG_TYPE:
     image = 'image'
     audio = 'audio'
     video = 'video'
+    gallery = 'gallery'
     audionote = 'audionote'
 
     knowntypes={text: 'text/html; charset=UTF-8', video: 'video/', image: 'image', audio: 'audio', audionote: 'audio/ogg'}
@@ -100,14 +101,26 @@ def cleanMessage(msg, username_template='\S+'):
     msg = msg.strip()
     return msg
 
+def getMessageText(msg):
+    text = msg.split('--new-message--')
+    for i in range(len(text)):
+        txt = text[i]
+        buttons = re.findall("\[\[[^\]]+\]\]", txt)
+        for ii in range(len(buttons)):
+            txt = txt.replace(buttons[ii], '')
+        text[i] = txt.strip()
+    return text
 def parseMessageFast(msg, past_answer=''): #TODO implement a class message, keeping info like results here, methods to add buttons and msges to markup, sending of msg, etc.
-    result = {'content': [], 'buttons': []}
+    result = []
+
     text = msg
     text = text.split('--new-message--')
 
-    l_number = re.match('\s*LEZIONE *(\d+)\.[\d+ ].*', text[0])
+    '''
+    l_number = re.match('.*LEZIONE\s*(\d+).\d+.*', text[0])
     if (l_number):
         result['lesson'] = int(l_number.groups()[0])
+    '''
 
     for txt in text:
         txt = txt.strip()
@@ -119,38 +132,50 @@ def parseMessageFast(msg, past_answer=''): #TODO implement a class message, keep
             buttons[i] = buttons[i][2:-2]
             buttons[i].strip()
 
-        result['content'].append([txt.strip() + past_answer, MSG_TYPE.text])
+        result.append({'content':[txt.strip() + past_answer, MSG_TYPE.text], 'buttons': []})
         for i in range(len(buttons)):
             b = buttons[i]
             details = b.split(';')
             details.append(None)
-            result['buttons'].append([details[0],details[1].strip(),details[2]])
+            result[-1]['buttons'].append([details[0], details[1].strip(), details[2]])
 
     return result
 
 def parseMessage(msg, past_answer=''): #TODO implement a class message, keeping info like results here, methods to add buttons and msges to markup, sending of msg, etc.
-    result = {'content': [], 'buttons': []}
+    result = []
 
     text = msg
     text = text.split('--new-message--')
 
-    l_number = re.match('.*LEZIONE\s*(\d+).\d+.*', text[0])
-    if (l_number):
-        result['lesson'] = int(l_number.groups()[0])
-
     for txt in text:
         txt = txt.strip()
-        url    = re.match('(https:\S+)'     , txt)
-        if url:
+        url_gallery = re.match('--gallery--[\s\S]*--gallery--', txt)
+        url         = re.match('(https:\S+)'                  , txt)
+        if url_gallery:
+            urls = re.findall('(https:\S+)', txt)
+            result.append({'content': [list(urls), MSG_TYPE.gallery], 'buttons': []})
+            for u in urls:
+                try:
+                    req = requests.get(u)
+                    r = req.headers['content-type']
+                    r = MSG_TYPE.getType(r)
+                    if r!=MSG_TYPE.image:
+                        result.pop(-1)
+                        break
+                except:
+                    result.pop(-1)
+                    pass
+            continue
+        elif url:
             url = url.groups()[0]
             url = url.strip()
             try:
                 req = requests.get(url)
                 r = req.headers['content-type']
                 r = MSG_TYPE.getType(r)
-                result['content'].append((url, r))
+                result.append({'content':(url, r), 'buttons':[]})
             except:
-                result['content'].append((url, 'text/html; charset=UTF-8'))
+                result.append({'content':(url, 'text/html; charset=UTF-8'), 'buttons':[]})
             #text = text[url_pos + len(url) + 1:]
             continue
 
@@ -163,12 +188,12 @@ def parseMessage(msg, past_answer=''): #TODO implement a class message, keeping 
             buttons[i] = buttons[i][2:-2]
             buttons[i].strip()
 
-        result['content'].append([txt.strip() + past_answer, MSG_TYPE.text])
+        result.append({'content':[txt.strip() + past_answer, MSG_TYPE.text], 'buttons': []})
         for i in range(len(buttons)):
             b = buttons[i]
             details = b.split(';')
             details.append(None)
-            result['buttons'].append([details[0],details[1].strip(),details[2]])
+            result[-1]['buttons'].append([details[0],details[1].strip(),details[2]])
 
     return result
 

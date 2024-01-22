@@ -29,6 +29,12 @@ class GoogleTableReader():
 
     critical_flag = False
 
+    pupilsData    = {}
+    fieldsIndexer = {}
+    pupilRowIndex = {}
+
+    updateQueue      = {}
+
     def __init__(self, spreadsheetId):
         self.alphabet = list(map(chr, range(ord('A'), ord('Z')+1)))
         tmp_alphabet = self.alphabet
@@ -43,8 +49,8 @@ class GoogleTableReader():
         self.spreadsheetId = spreadsheetId
 
         self.header = self.__readHeader()
+        self.initPupilsDatabase()
         self.short_header = self.__readHeaderShort()
-        self.pupils_id = self.getAllPupilColumns(['id'])[0]
 
         print('Created reader for:' + 'https://docs.google.com/spreadsheets/d/' + spreadsheetId)
 
@@ -52,22 +58,23 @@ class GoogleTableReader():
         threading.Timer(313.0, self.__reconnect).start()
         pass
 
+
     def my_shiny_new_decorator(function_to_decorate):
         def wrapper(self, *args, **kwargs):
             access_count = 0
             r = random.random()
-            if self.read_counter > 100:
+            if self.read_counter > 130:
                 time.sleep(2+r)
                 print('Too many requests 1')
-            if self.read_counter > 150:
+            if self.read_counter > 180:
                 time.sleep(3+r)
                 print('Too many requests 2')
-            if self.read_counter > 200:
+            if self.read_counter > 230:
                 time.sleep(4+r)
                 print('Too many requests 3')
             if self.read_counter > 250:
                 time.sleep(30+r)
-                print('Too many requests 3')
+                print('Too many requests 4')
 
             while self.critical_flag:
                 access_count += 1
@@ -89,13 +96,19 @@ class GoogleTableReader():
         return wrapper
 
     @my_shiny_new_decorator
+    def allUpdate(self):
+        self.__updateRemoteSpreadsheet()
+        self.header = self.__readHeader()
+        self.pupilsData, self.fieldsIndexer = self.getPupilsDatabase()
+
+    @my_shiny_new_decorator
     def __resetAccessCounter(self):
         threading.Timer(60.0, self.__resetAccessCounter).start()
         print('Access counter, read: ' + str(self.read_counter))
         self.read_counter  = 0
         self.write_counter = 0
         self.header = self.__readHeader()
-
+        self.__updateRemoteSpreadsheet()
     @my_shiny_new_decorator
     def __reconnect(self):
         threading.Timer(300.0, self.__reconnect).start()
@@ -114,29 +127,29 @@ class GoogleTableReader():
 
     def __readHeader(self, sheet = 'pupils', rng = 'A1:AZ4'):
         self.read_counter+=1
-        header = [[],[],[]]
+        header = [[],[],[],[]]
         content = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                                range=sheet + '!' + rng).execute()['values']
-        header[0] = content[0]
-        header[2] = content[3]
+        header[0] = content[0] + ['']
+        header[2] = content[2] + [0]
+        header[3] = content[3] + ['.*']
         addr = re.match('(\w+)(\d+):(\w+)(\d+)', rng)
         count = self.alphabet.index(addr[1])
-        for h in header[0]:
+        for h in header[0][:-1]:
             header[1].append(sheet + '!' + self.alphabet[count])
             count+=1
+        header[1].append('')
 
         for i in range(len(header[0])):
             r = re.match("(\w+)!([A-Z]+\d+:[A-Z]+\d+)", header[0][i])
             if not (r is None):
                 tmp = self.__readHeader(sheet=r[1], rng=r[2])
-                header[0] = header[0][:i] + tmp[0] + header[0][i + 1:]
-                header[1] = header[1][:i] + tmp[1] + header[1][i + 1:]
-                header[2] = header[2][:i] + tmp[2] + header[2][i + 1:]
+                header[0] = header[0][:i] + tmp[0][:-1] + header[0][i + 1:]
+                header[1] = header[1][:i] + tmp[1][:-1] + header[1][i + 1:]
+                header[2] = header[2][:i] + tmp[2][:-1] + header[2][i + 1:]
+                header[3] = header[3][:i] + tmp[3][:-1] + header[3][i + 1:]
 
         return header
-
-    def refresh(self):
-        self.pupils_id = self.getAllPupilColumns(['id'])[0]
 
     def giveAccess(self, email, role='writer'):
         access = self.service.permissions().create(
@@ -146,92 +159,144 @@ class GoogleTableReader():
             fields='id'
         ).execute()
 
-    def getFieldValue(self, id, fieldname, key_column='id'):
+    @my_shiny_new_decorator
+    def initPupilsDatabase(self):
+        self.pupilsData, self.fieldsIndexer = self.getPupilsDatabase()
+        pass
+
+    def getPupilsDatabase(self):
+        head, data = self.__initVitrualTable()
+        id_ind = head[0].index('id')
+        allPupilsDict = {}
+
+        id_column = [int(row[id_ind]) for row in data]
+
+        self.pupilRowIndex = {id_column[c]: c + len(head) + 1 for c in range(len(data))}
+
+        count = 0
+        for id in id_column:
+            allPupilsDict[int(id)] = data[count]
+            allPupilsDict[int(id)].append(None)
+            count+=1
+
+        allFieldsIndexer = {}
+        count = 0
+        for f in head[0]:
+            allFieldsIndexer[f] = count
+            count+=1
+
+        return allPupilsDict, allFieldsIndexer
+
+    def __initVitrualTable(self):#TODO: make reading form adresses from headers
+        print('initVirtualTable')
+
+        self.read_counter += 1
+        header = self.__readHeader()
+
+        readings = [h + str(len(header)+1) + ':' + h.split('!')[1] + '999' for h in header[1][:-1]]
+
+        resp = self.service.spreadsheets().values().batchGet(spreadsheetId=self.spreadsheetId,
+                                                                   ranges=readings).execute()['valueRanges']
+        data_table = []
+        for row in range(len(resp[0]['values'])):
+            data_table.append([])
+            for c in resp:
+                if 'values' in c and row < len(c['values']) and len(c['values'][row])>0:
+                    data_table[-1].append(c['values'][row][0])
+                else:
+                    data_table[-1].append('')
+
+        return header, data_table
+
+    def getFieldValue(self, id, fieldname, key_column='id', force=False):
         print('getFieldValue')
 
         if self.header is None:
             self.header = self.__readHeader()
 
-        all_keys = self.pupils_id
-        if key_column!='id':
-            all_keys = self.getAllPupilColumns([key_column])[0]
-        elif self.pupils_id == None:
-            self.pupils_id = self.getAllPupilColumns(['id'])[0]
-            all_keys = self.pupils_id
+        result = None
 
-        if not(str(id) in all_keys):
-            return None
-        u_row = str(all_keys.index(str(id))+4+1)
-        if fieldname in self.header[0]:
-            j = self.header[0].index(fieldname)
-            addr = self.header[1][j].split('!')
-            sheetN, letter = addr[0], addr[1]
-            result = self.getValue(sheetN, letter+u_row+':'+letter+u_row)
-            return result[0][0]
+        if key_column=='id':
+            if id in self.pupilsData:
+                if force:
+                    rng = self.__addRowToAddres(self.header[1][self.fieldsIndexer.get(fieldname, -2)], self.pupilRowIndex[id])
+                    result = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
+                                                                       range=rng).execute()['values'][0][0]
+                else:
+                    result = self.pupilsData[id][self.fieldsIndexer.get(fieldname, -1)]
+        else:
+            for p in self.pupilsData:
+                if str(self.pupilsData[p][self.fieldsIndexer[key_column]]) == str(id):
+                    if force:
+                        rng = self.__addRowToAddres(self.header[1][self.fieldsIndexer.get(fieldname, -2)], self.pupilRowIndex[p])
+                        result = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
+                                                                          range=rng).execute()['values'][0][0]
+                    else:
+                        result = self.pupilsData[p][self.fieldsIndexer.get(fieldname, -1)]
 
-        return None
+        return result
 
-    def checkFieldValue(self, value, cell):
+    def getFieldValues(self, id, fieldnames, key_column='id'):
+        print('getFieldValue')
+
+        if self.header is None:
+            self.header = self.__readHeader()
+
+        result = [None]*len(fieldnames)
+        if not(key_column in self.fieldsIndexer):
+            return result
+
+        if key_column=='id':
+            if id in self.pupilsData:
+                result = [self.pupilsData[id][self.fieldsIndexer.get(f, -1)] for f in fieldnames]
+        else:
+            for p in self.pupilsData:
+                if str(self.pupilsData[p][self.fieldsIndexer.get(key_column, -1)]) == str(id):
+                    result = [self.pupilsData[p][self.fieldsIndexer.get(f, -1)] for f in fieldnames]
+
+        return result
+
+    def checkFieldValue(self, value, field):
         print('checkFieldValue')
         # self.service = apiclient.discovery.build('sheets', 'v4', http=self.httpAuth)
         if self.header is None:
             self.header = self.__readHeader()
 
-        if(cell in self.header[0]):
-            if value == self.header[2][self.header[0].index(cell)]:
-                return True
-            else:
-                return False
+        control_exp = self.header[3][self.fieldsIndexer.get(field, -1)]
+        if re.match(control_exp, value):
+            return True
+        else:
+            return False
         return False
 
-
-    def getAllFieldValue(self, id, sheetName='pupils'): #TODO: review method and its application
+    def getAllFieldValue(self, id): #TODO: review method and its application
         print('getAllFieldValue')
         #self.service = apiclient.discovery.build('sheets', 'v4', http=self.httpAuth)
         self.read_counter += 1
-        myheader = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
-                                                                   range=sheetName + '!' + 'A1:AZ4').execute()['values']
 
-        all_user_id = self.pupils_id
-        if self.pupils_id == None:
-            self.pupils_id = self.getAllPupilColumns(['id'])[0]
-
-        if not(str(id) in all_user_id):
-            return None
-        u_row = str(all_user_id.index(str(id))+4+1)
-        record = self.getValue(sheetName, 'A' + u_row + ':' + 'AZ' + u_row)[0]
-
-        myheader.append(record)
-        return myheader
-
+        return self.header, self.pupilsData[id]
 
     @my_shiny_new_decorator
     def setFieldValues(self, id, values, fieldnames, key_column='id'):
         print('setFieldValuessss')
 
-        # print('Before read header!')
-        if self.header is None:
-            self.header = self.__readHeader()
+        key_id = id
+        if key_column=='id':
+            if id in self.pupilsData:
+                for h,v in zip(fieldnames, values):
+                    self.pupilsData[id][self.fieldsIndexer.get(h, -1)] = str(v)
+                self.pupilsData[id][-1] = None
+        else:
+            for p in self.pupilsData:
+                if str(p[self.fieldsIndexer.get(key_column, -1)])==str(id):
+                    key_id = p[self.fieldsIndexer.get('id', -1)]
+                    for h, v in zip(fieldnames, values):
+                        self.pupilsData[key_id][h] = v
+                    self.pupilsData[key_id][-1] = None
+                    break
 
-        all_keys_collumn = self.pupils_id
-        if key_column != 'id':
-            all_keys_collumn = self.getAllPupilColumns([key_column])[0]
-        elif self.pupils_id == None:
-            self.pupils_id = self.getAllPupilColumns([key_column])[0]
-            all_keys_collumn = self.pupils_id
-
-        if not (str(id) in all_keys_collumn):
-            return None
-
-        u_row = str(all_keys_collumn.index(str(id)) + 4 + 1)
-        body  = {'valueInputOption': 'RAW', 'data': []}
-        for fn,v in zip(fieldnames,values):
-            if fn in self.header[0]:
-                j = self.header[0].index(fn)
-                body['data'].append({'range': self.header[1][j] + u_row, 'values': [[v]]})
-            pass
-        self.write_counter += 1
-        self.service.spreadsheets().values().batchUpdate(spreadsheetId=self.spreadsheetId, body=body).execute()
+        if key_id in self.pupilsData:
+            self.updateQueue[key_id] = list(self.updateQueue.get(key_id,[]))+fieldnames
 
         return None
 
@@ -240,22 +305,21 @@ class GoogleTableReader():
         if self.header is None:
             self.header = self.__readHeader()
 
-        all_keys_collumn = self.pupils_id
-        if key_column != 'id':
-            all_keys_collumn = self.getAllPupilColumns([key_column])[0]
-        elif self.pupils_id == None:
-            self.pupils_id = self.getAllPupilColumns([key_column])[0]
-            all_keys_collumn = self.pupils_id
+        key_id = id
+        if key_column=='id':
+            if id in self.pupilsData:
+                self.pupilsData[id][self.fieldsIndexer.get(fieldname, -1)] = value
+                self.pupilsData[id][-1] = None
+        else:
+            for p in self.pupilsData:
+                if p[self.fieldsIndexer.get(key_column, -1)] == id:
+                    key_id = p[self.fieldsIndexer.get('id', -1)]
+                    self.pupilsData[key_id][self.fieldsIndexer.get(fieldname, -1)] = value
+                    self.pupilsData[key_id][-1] = None
+                    break
 
-
-        if not(str(id) in all_keys_collumn):
-            return None
-        u_row = str(all_keys_collumn.index(str(id))+4+1)
-        if fieldname in self.header[0]:
-            j = self.header[0].index(fieldname)
-            addr = self.header[1][j].split('!')
-            self.setValue([value], addr[0], addr[1]+u_row)
-            pass
+        if key_id in self.pupilsData:
+            self.updateQueue[key_id] = list(self.updateQueue.get(key_id,[]))+[fieldname]
 
         return None
 
@@ -287,30 +351,26 @@ class GoogleTableReader():
 
         return resp
 
-    def getPupilStatus(self, id, sheetName='pupils'):
+    def getPupilStatus(self, id):
         print('getPupilStatus')
+
         if self.header is None:
             self.header = self.__readHeader()
-        all_keys = self.pupils_id
-        if self.pupils_id == None:
-            self.pupils_id = self.getAllPupilColumns(['id'])[0]
-            all_keys = self.pupils_id
 
-        if not (str(id) in all_keys):
-            return None
-        u_row = str(all_keys.index(str(id)) + 4 + 1)
-        result = self.getValue(sheetName, 'A' + u_row + ':' + 'AZ' + u_row)[0]
         pupil_info = {}
-        for k, r in zip(self.header[0], result):
-            j = self.header[0].index(k)
-            pupil_info[k] = r
+        if not(id in self.pupilsData):
+            return pupil_info
+
+        for h in self.header[0]:
+            pupil_info[h] = self.pupilsData[id][self.fieldsIndexer[h]]
 
         return pupil_info
+
     @my_shiny_new_decorator
     def getAllValue(self, sheetName):
         print('getAllValue')
         # self.service = apiclient.discovery.build('sheets', 'v4', http=self.httpAuth)
-        rng = sheetName + '!' + 'A1:Z999'
+        rng = sheetName + '!' + 'A1:BZ999'
         self.read_counter += 1
         results = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId, range=rng).execute()
         if not ('values' in results):
@@ -340,44 +400,27 @@ class GoogleTableReader():
         return sheet_values
 
     @my_shiny_new_decorator
-    def getAllPupilColumns(self, columns, sheetName='pupils'): #TODO: extract sheet name from header for nested sheets
+    def getAllPupilColumns(self, columns): #TODO: extract sheet name from header for nested sheets
         print('getAllPupilColumns')
-
         if len(columns)<1:
             return []
 
         if self.header is None:
             self.header = self.__readHeader()
-        columns_ids = []
-        for c in columns:
-            if self.header[1][self.header[0].index(c)].split('!')[0] == sheetName:
-                columns_ids.append(self.header[0].index(c))
-
-        self.read_counter += 1
-        res = None
-        try:
-            res = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
-                                                       range=sheetName + '!' + 'A5:'  + 'Z999').execute()
-        except Exception as err:
-            print('!!!!!!!!!!!!This is you exception')
-            pass
 
         result = []
-        if not 'values' in res:
-            result.append([])
-            return result
-
-        for ci in columns_ids:
-            res_col = [col[ci] for col in res['values']]
-            result.append(res_col)
+        for c in columns:
+            result.append([self.pupilsData[id][self.fieldsIndexer.get(c, -1)] for id in self.pupilsData])
 
         return result
 
+
     @my_shiny_new_decorator
-    def getPupilStruct(self, sheetName='pupils', rng='A1:AZ4'):
+    def getPupilStruct(self, sheetName='pupils', rng='A1:BZ4'):
         return self.__getPupilStruct(sheetName=sheetName, rng=rng)
 
-    def __getPupilStruct(self, sheetName='pupils', rng='A1:AZ4'):
+
+    def __getPupilStruct(self, sheetName='pupils', rng='A1:BZ4'):
         print('getPupilStruct')
         #self.service = apiclient.discovery.build('sheets', 'v4', http=self.httpAuth)
         pupil_data_struct = {}
@@ -386,7 +429,7 @@ class GoogleTableReader():
         results = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId, range=header_rng).execute()
         names  = results['values'][0]
         source = results['values'][1]
-        regex  = results['values'][2]
+        regex  = results['values'][3]
         for n in names:
             r = re.match("(\w+)!([A-Z]+\d+:[A-Z]+\d+)", n)
             if not (r is None):
@@ -400,63 +443,55 @@ class GoogleTableReader():
 
         return pupil_data_struct
 
-    def deletePupil(self, uid): #TODO: don't use, need to be corrected for nested sheets
-        sheetName = 'pupils'
-        ids = self.getAllPupilColumns(['id'])[0]
-        u_row = int(ids.index(str(uid)) + 4 + 1)
-
-        resource = {
-            "requests": [
-                {
-                    "deleteDimension": {
-                        "range": {
-                            "sheetId": 2087899597,
-                            "dimension": "ROWS",
-                            "startIndex": u_row-1,
-                            "endIndex": u_row
-                        }
-                    }
-                }
-            ]
-        }
-        self.write_counter += 1
-        resp = self.service.spreadsheets().batchUpdate(spreadsheetId = self.spreadsheetId, body=resource).execute()
-        self.pupils_id = self.getAllPupilColumns(['id'])[0]
-        return resp
-
-    def addPupil(self, pupil_info, sheetName='pupils'):
+    def addPupil(self, pupil_info):
         print('addPupil')
-        #self.service = apiclient.discovery.build('sheets', 'v4', http=self.httpAuth)
 
-        ids = self.pupils_id
-        if self.pupils_id == None:
-            self.pupils_id = self.getAllPupilColumns(['id'])[0]
-            ids = self.pupils_id
-
-        pupil_info['alingment'] = 0
-        #self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,range=sheetName + '!' + 'A5:A9999').execute()
-        #ids = flatten(ids['values'])
-        if str(pupil_info['id']) in ids:
+        p_id = int(pupil_info['id'])
+        if p_id in self.pupilsData:
             return None
 
-        if self.short_header is None:
-            self.short_header = self.__readHeaderShort()
+        pupil_info['alingment'] = 0
+        self.pupilsData[p_id] = [''] * len(self.header[0])
+        for f in pupil_info:
+            self.pupilsData[p_id][self.fieldsIndexer.get(f, -1)] = str(pupil_info[f])
+        self.pupilsData[p_id][-1]=None
+        self.pupilRowIndex[p_id] = self.pupilRowIndex[max(self.pupilRowIndex, key=self.pupilRowIndex.get)]+1
 
-        pupil_spreadsheet = {'values': [[]]}
-        for inf in self.short_header:
-            if inf in pupil_info:
-                pupil_spreadsheet['values'][0].append(pupil_info[inf])
-            else:
-                pupil_spreadsheet['values'][0].append('')
+        self.updateQueue[p_id] = pupil_info.keys()
+        return None
 
-        self.write_counter += 1
-        resp = self.service.spreadsheets().values().append(
-            spreadsheetId=self.spreadsheetId,
-            range="pupils!A1",
-            valueInputOption="RAW",
-            body=pupil_spreadsheet).execute()
+    @my_shiny_new_decorator
+    def getValuesFromStr(self, addr_list):
+        resp = self.service.spreadsheets().values().batchGet(spreadsheetId=self.spreadsheetId,
+                                                             ranges=addr_list).execute()['valueRanges']
+        result = []
+        for c in resp:
+            if 'values' in c :
+                result.append(c['values'][0][0])
+        return result
 
-        self.pupils_id = self.getAllPupilColumns(['id'])[0]
+    def __addRowToAddres(self, addr, row):
+        return addr.split('!')[0] + '!' + addr.split('!')[1] + str(row)
+
+
+    def __updateRemoteSpreadsheet(self):
+        for pupil in self.updateQueue:
+            self.updateQueue[pupil] = list(set(self.updateQueue[pupil]))
+
+        body = {'valueInputOption': 'RAW', 'data': []}
+        for pupil in self.updateQueue:
+            for f in self.updateQueue[pupil]:
+                if f in self.fieldsIndexer:
+                    addr  = self.__addRowToAddres(self.header[1][self.fieldsIndexer[f]], self.pupilRowIndex[pupil])
+                    value = self.pupilsData[pupil][self.fieldsIndexer[f]]
+                    body['data'].append({'range': addr, 'values':[[value]]})
+        resp = ''
+        if len(body['data'])>0:
+            try:
+                resp = self.service.spreadsheets().values().batchUpdate(spreadsheetId=self.spreadsheetId, body=body).execute()
+                self.updateQueue = {}
+            except:
+                pass
 
         return resp
 
