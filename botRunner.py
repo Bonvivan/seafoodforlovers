@@ -762,10 +762,7 @@ class SurveyBot(telebot.TeleBot):
                 self.edit_message_reply_markup(cid, message_id=callback_query.message.message_id, reply_markup='')
             except:
                 pass
-            if(self.data_table.checkFieldValue(data[1], cell)):
-                self.send_message(cid, '✅ ' + data[1])
-            else:
-                self.send_message(cid, '🔴 ' + data[1])
+            self.send_message(cid, '<b>' + data[1] + '</b>', parse_mode='html')
             goback_callback_button(callback_query)
             pass
 
@@ -1063,7 +1060,7 @@ class SurveyBot(telebot.TeleBot):
 
             txt = ''
 
-            txt += '\nЭти кнопки для преподавателя, исли их нажимать, ничего не произойдет.'
+            txt += '\nЭти кнопки для преподавателя, если их нажимать, ничего не произойдет.'
             txt += '\n'
             markup = types.InlineKeyboardMarkup(row_width=2)
             callback = 'tch;' + 'A1' + ';' + self.user_cell_position[uid] + ';' + 'intro!A7'
@@ -1154,10 +1151,11 @@ class SurveyBot(telebot.TeleBot):
         if chat_id in self.conditions:
             conditions = self.conditions[chat_id]
         for uc in conditions:
+            self.data_table.forceWrite()
             if(uc[0][:5] == 'check'):
                 cnt = uc[0]
                 ref = re.findall('check:\?\?\?(.+)\?\?\?', cnt)[0]
-                val = self.data_table.getFieldValue(message.from_user.id, ref)
+                val = self.data_table.getFieldValue(message.from_user.id, ref, force=True)
                 result = eval(cnt[6:].replace('???' + ref + '???', val).strip())
                 if result:
                     return None
@@ -1327,9 +1325,6 @@ class SurveyBot(telebot.TeleBot):
         uid = message.from_user.id
         chat_id = message.chat.id
 
-        addrl = [addr]
-        self.conditon_processor(message, addrl)
-        addr = addrl[0]
 
         if 'chiefid' in self.bot_state and message.from_user.id in self.bot_state['chiefid']:
             pupil_id = self.__find_keys(self.user_chat_id, chat_id)
@@ -1350,6 +1345,10 @@ class SurveyBot(telebot.TeleBot):
             field_name = self.data_dstn[self.user_cell_position[uid]]
             self.data_table.setFieldValue(uid, tp.cleanMessage(message.text, self.user.username), field_name)
             print('Message to be logged: ' + message.text)
+
+        addrl = [addr]
+        self.conditon_processor(message, addrl)
+        addr = addrl[0]
 
         # update user status in the chat
         self.user_cell_position[uid] = addr  # jumping to the next cell in user status

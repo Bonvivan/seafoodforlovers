@@ -98,7 +98,6 @@ class GoogleTableReader():
     @my_shiny_new_decorator
     def allUpdate(self):
         self.__updateRemoteSpreadsheet()
-        self.header = self.__readHeader()
         self.pupilsData, self.fieldsIndexer = self.getPupilsDatabase()
 
     @my_shiny_new_decorator
@@ -473,7 +472,9 @@ class GoogleTableReader():
     def __addRowToAddres(self, addr, row):
         return addr.split('!')[0] + '!' + addr.split('!')[1] + str(row)
 
-
+    @my_shiny_new_decorator
+    def forceWrite(self):
+        self.__updateRemoteSpreadsheet()
     def __updateRemoteSpreadsheet(self):
         for pupil in self.updateQueue:
             self.updateQueue[pupil] = list(set(self.updateQueue[pupil]))
