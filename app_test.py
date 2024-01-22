@@ -153,7 +153,7 @@ async def normal_handler(event):
             z = re.match(r'.*link=\'(https:\S+)\'.*', str(invite_link))
             invite_link = z.groups()[0]
 
-            txt = '/tunnelmsg;' + str(pupil) + ';Это приглашение в чат для обучения итальянскому. Переходи в группу и начни свой первый урок! \n\n<b>Этот чат можете удалить, он больше не пригодится.</b>\n\n' + invite_link
+            txt = '/tunnelmsg;' + str(pupil) + ';Это приглашение в чат для обучения итальянскому. Переходи в группу и начни свой первый урок!' + invite_link
             await asyncio.sleep(10)
             await client.send_message(botuser, txt, parse_mode='html') # sending a link to a user.
             superbot_state['tmp_chat_id'].append({'id': result.chats[0].id, 'pid': pupil, 'botuser': botuser, 'time': result.chats[0].date.isoformat()})

@@ -100,6 +100,16 @@ def cleanMessage(msg, username_template='\S+'):
     msg = msg.strip()
     return msg
 
+def getMessageText(msg):
+    text = msg.split('--new-message--')
+    for i in range(len(text)):
+        txt = text[i]
+        buttons = re.findall("\[\[[^\]]+\]\]", txt)
+        for ii in range(len(buttons)):
+            txt = txt.replace(buttons[ii], '')
+        text[i] = txt.strip()
+    return text
+
 def parseMessageFast(msg, past_answer=''): #TODO implement a class message, keeping info like results here, methods to add buttons and msges to markup, sending of msg, etc.
     result = {'content': [], 'buttons': []}
     text = msg

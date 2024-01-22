@@ -47,6 +47,7 @@ for q in quest:
 all_cells = []
 all_cells_answer = [[],[],[],[]]
 answers_ref = ['a','b','c']
+levels = ['A1', 'A2', 'B1', 'B2']
 answers_id = []
 
 for a in answers:
@@ -70,7 +71,7 @@ for q,a in zip(q_list, a_list):
     all_cells_answer[2].append(0)
     all_cells_answer[3].append(a[answers_id[count-2]])
 
-    cell_test = str(level_count) + '. '
+    cell_test = levels[count_of_level] + '.' + str(level_count) + '. '
     cell_test += q + '\n'
 
     too_long = False
@@ -79,7 +80,7 @@ for q,a in zip(q_list, a_list):
             too_long = True
             break
 
-    for i in range(len(a)):
+    for i in range(len(a)-1):
         aa = a[i]
         if too_long:
             cell_test = cell_test + aa + '\n'
@@ -88,6 +89,9 @@ for q,a in zip(q_list, a_list):
     for aa in a[:-1]:
         cell_test += '[[' + aa + ';test_q!A' + str(count)+ ';/check' + ']]\n'
     cell_test += '[[' + a[-1] + ';test_q!A' + str(count) + ';' + ']]\n'
+    if count>2:
+        cell_test += '[[вернуться назад;' + 'test_q!A' + str(count-2) + ';/back]]'
+
 
     all_cells.append([cell_test])
 
@@ -97,3 +101,5 @@ test_table.setValue(all_cells, 'test_q', 'A1:Z99')
 #test_table.setValue(all_cells_answer, 'test_results', 'G1:BZ99')
 
 print('END')
+
+exit(0)

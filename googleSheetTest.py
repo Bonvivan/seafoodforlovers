@@ -235,6 +235,27 @@ class GoogleTableReader():
 
         return None
 
+    @my_shiny_new_decorator
+    def getFieldValues(self, id, fieldnames, key_column='id'):
+        all_keys_collumn = self.pupils_id
+        if key_column != 'id' or self.pupils_id == None:
+            all_keys_collumn = self.getAllPupilColumns([key_column])[0]
+
+        u_row = str(all_keys_collumn.index(str(id)) + 4 + 1)
+        addrs=[]
+        for fn in fieldnames:
+            if fn in self.header[0]:
+                j = self.header[0].index(fn)
+                addrs.append(self.header[1][j] + str(u_row))
+            pass
+
+        info = self.service.spreadsheets().values().batchGet(spreadsheetId=self.spreadsheetId, ranges=addrs).execute()
+        result = {}
+        for i in range(len(fieldnames)):
+            result[fieldnames[i]] = info['valueRanges'][i].pop('values',[['']])[0][0]
+
+        return result
+
     def setFieldValue(self, id, value, fieldname, key_column='id'):
         print('setFieldValue')
         if self.header is None:
@@ -298,14 +319,13 @@ class GoogleTableReader():
 
         if not (str(id) in all_keys):
             return None
-        u_row = str(all_keys.index(str(id)) + 4 + 1)
-        result = self.getValue(sheetName, 'A' + u_row + ':' + 'AZ' + u_row)[0]
-        pupil_info = {}
-        for k, r in zip(self.header[0], result):
-            j = self.header[0].index(k)
-            pupil_info[k] = r
+
+        this_header = [self.header[0][i] for i in range(len(self.header[0])) if self.header[1][i].split('!')[0]==sheetName]
+        pupil_info ={}
+        pupil_info = self.getFieldValues(id, this_header)
 
         return pupil_info
+
     @my_shiny_new_decorator
     def getAllValue(self, sheetName):
         print('getAllValue')
@@ -386,7 +406,7 @@ class GoogleTableReader():
         results = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId, range=header_rng).execute()
         names  = results['values'][0]
         source = results['values'][1]
-        regex  = results['values'][2]
+        regex  = results['values'][3]
         for n in names:
             r = re.match("(\w+)!([A-Z]+\d+:[A-Z]+\d+)", n)
             if not (r is None):
