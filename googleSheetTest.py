@@ -102,7 +102,7 @@ class GoogleTableReader():
 
     @my_shiny_new_decorator
     def __resetAccessCounter(self):
-        threading.Timer(30.0, self.__resetAccessCounter).start()
+        threading.Timer(60.0, self.__resetAccessCounter).start()
         print('Access counter, read: ' + str(self.read_counter))
         self.read_counter  = 0
         self.write_counter = 0
