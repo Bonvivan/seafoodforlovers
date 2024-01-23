@@ -266,6 +266,7 @@ class SurveyBot(telebot.TeleBot):
             print('start_command')
             uid = message.from_user.id
             cid = message.chat.id
+            print('START from: ' + str(uid) + ' ' + str(message.from_user.username))
             if 'chiefid' in self.bot_state and uid in self.bot_state['chiefid']:
                 self.send_message(cid, 'Вы учитель.')
                 if cid == uid:
@@ -728,7 +729,8 @@ class SurveyBot(telebot.TeleBot):
             self.answer_callback_query(callback_query.id)
             print(callback_query)
             print('Sending request to save user')
-            if(callback_query.message.from_user.username == '' or callback_query.message.from_user.username == 'Nonw' or callback_query.message.from_user.username is None):
+            if(callback_query.message.from_user.username == '' or str(callback_query.message.from_user.username) == 'None' or callback_query.message.from_user.username is None):
+                print('No username event!!')
                 self.send_message(callback_query.message.chat.id, 'У вас не задано имя пользователя в Telegram. Пожалуйста задайте имя пользователя, потом наберите /start, чтоб продолжить\n')
                 return None
             try:
