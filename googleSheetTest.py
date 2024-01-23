@@ -102,7 +102,7 @@ class GoogleTableReader():
 
     @my_shiny_new_decorator
     def __resetAccessCounter(self):
-        threading.Timer(60.0, self.__resetAccessCounter).start()
+        threading.Timer(30.0, self.__resetAccessCounter).start()
         print('Access counter, read: ' + str(self.read_counter))
         self.read_counter  = 0
         self.write_counter = 0
@@ -490,9 +490,10 @@ class GoogleTableReader():
         if len(body['data'])>0:
             try:
                 resp = self.service.spreadsheets().values().batchUpdate(spreadsheetId=self.spreadsheetId, body=body).execute()
-                self.updateQueue = {}
-            except:
+            except Exception as err:
+                print('ERROR_ERROR_ERROR: ' + str(list(self.updateQueue.keys())))
+                return None
                 pass
-
+        self.updateQueue = {}
         return resp
 

@@ -728,15 +728,16 @@ class SurveyBot(telebot.TeleBot):
             self.answer_callback_query(callback_query.id)
             print(callback_query)
             print('Sending request to save user')
-            if(callback_query.message.from_user.username == ''):
+            if(callback_query.message.from_user.username == '' or callback_query.message.from_user.username == 'Nonw' or callback_query.message.from_user.username is None):
                 self.send_message(callback_query.message.chat.id, 'У вас не задано имя пользователя в Telegram. Пожалуйста задайте имя пользователя, потом наберите /start, чтоб продолжить\n')
                 return None
             try:
                 pupil_info = self.__create_user(self.survey_dict,
                                                 callback_query.from_user)  # TODO change to save next state, not current
+                self.data_table.forceWrite()
             except Exception as err:
                 self.data_table.critical_flag = False
-                print("__create_user: " + str(err))
+                print("!!!!ERROR __create_user: !!!!!" + str(err))
                 return None
 
             self.data_table.addPupil(pupil_info)
