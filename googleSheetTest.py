@@ -474,7 +474,7 @@ class GoogleTableReader():
 
     @my_shiny_new_decorator
     def forceWrite(self):
-        self.__updateRemoteSpreadsheet()
+        return self.__updateRemoteSpreadsheet()
     def __updateRemoteSpreadsheet(self):
         for pupil in self.updateQueue:
             self.updateQueue[pupil] = list(set(self.updateQueue[pupil]))
@@ -486,13 +486,13 @@ class GoogleTableReader():
                     addr  = self.__addRowToAddres(self.header[1][self.fieldsIndexer[f]], self.pupilRowIndex[pupil])
                     value = self.pupilsData[pupil][self.fieldsIndexer[f]]
                     body['data'].append({'range': addr, 'values':[[value]]})
-        resp = ''
+        resp = True
         if len(body['data'])>0:
             try:
                 resp = self.service.spreadsheets().values().batchUpdate(spreadsheetId=self.spreadsheetId, body=body).execute()
             except Exception as err:
-                print('ERROR_ERROR_ERROR: ' + str(list(self.updateQueue.keys())))
-                return None
+                print('ERROR_ERROR_ERROR: ' + str(list(self.updateQueue.keys()))  + ' ' + str(err))
+                return False
                 pass
         self.updateQueue = {}
         return resp

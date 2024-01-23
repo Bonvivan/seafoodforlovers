@@ -734,13 +734,16 @@ class SurveyBot(telebot.TeleBot):
             try:
                 pupil_info = self.__create_user(self.survey_dict,
                                                 callback_query.from_user)  # TODO change to save next state, not current
-                self.data_table.forceWrite()
+                self.data_table.addPupil(pupil_info)
+                if(not(self.data_table.forceWrite())):
+                    print("!!!!ERROR __create_user: !!!!!" )
+                    return None
             except Exception as err:
                 self.data_table.critical_flag = False
                 print("!!!!ERROR __create_user: !!!!!" + str(err))
                 return None
 
-            self.data_table.addPupil(pupil_info)
+
             callback_query.message.from_user.id = callback_query.from_user.id
             try:
                 self.goahead(callback_query.message, *callback_query.data.split(';')[2:])
