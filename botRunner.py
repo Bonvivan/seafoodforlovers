@@ -275,7 +275,7 @@ class SurveyBot(telebot.TeleBot):
             if uid in self.user_chat_id:
                 if self.user_chat_id[uid]!=-1 and self.user_chat_id[uid]!=cid:
                     try:
-                        link = self.create_chat_invite_link(int(cid)).invite_link
+                        link = self.create_chat_invite_link(int(self.user_chat_id[uid])).invite_link
                         self.send_message(cid, 'Перейдите в обучающий чат: ' + link)
                         return None
                     except:
