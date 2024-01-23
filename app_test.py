@@ -27,7 +27,9 @@ api_hash = 'aab0023515492e361473e53644c7413b'
 #-------------------------------------------------------#
 
 api_id = 27619730
+#api_id = 26733046
 api_hash = 'cca9443429ddb73be66dd446ddfbb2ec'
+#api_hash = 'd701b98444e0f3ee88b06b086feb239c'
 
 #client = TelegramClient('MargoSuperSession', api_id, api_hash, system_version="4.16.30-vxCUSTOM", device_model="MyHomeServer", app_version="myPythonApp")
 client = TelegramClient('MySuperSession', api_id, api_hash, system_version="4.16.30-vxCUSTOM", device_model="MyHomeServer", app_version="myPythonApp")
@@ -174,6 +176,7 @@ async def normal_handler(event):
 
 
 client.start()
+
 for dialog in client.iter_dialogs():
     print('Dialog entity: ' + str(dialog.entity.id))
 try:
