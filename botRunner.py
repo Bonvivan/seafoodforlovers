@@ -233,10 +233,7 @@ class SurveyBot(telebot.TeleBot):
             print('tunnel_msg')
             try:
                 cmd = tp.parseCommand(message.text)
-                print('Parsing')
-                id_u = data_table.getAllPupilColumns(['id', 'username'])
-                print('User id')
-                _id = id_u[0][id_u[1].index(cmd['args'][0])]
+                _id = int(cmd['args'][0])
                 print('Chat id')
                 self.send_message(_id, cmd['args'][1])
                 print('MSG to user')
@@ -260,12 +257,81 @@ class SurveyBot(telebot.TeleBot):
             json.dump(self.bot_state, state_f)
             state_f.close()
 
+        @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('/sendcold', m.text) == len('/sendcold'))
+        @self.single_user_decorator
+        def sendtocold_command(message):
+            print('send_to_cold')
+            uid = message.from_user.id
+            cid = message.chat.id
+            if not('chiefid' in self.bot_state and uid in self.bot_state['chiefid']):
+                return None
+
+            cell = message.text.split(';')[-1]
+            msg = self.data_table.getValueFromStr(cell)[0][0]
+            content = tp.parseMessage(msg, '')
+            for i in range(len(content)):
+                content[i]['buttons'] = self.__anonKeyFromContent(content[i]['buttons'],cell)
+
+            cold_users = self.data_table.getAllValue(sheetName='cold')
+            dest = []
+            for row in cold_users[4:]:
+                dest.append(int(row[0]))
+
+            markup = []
+            for i in range(len(content)):
+                if len(content[i]['buttons']) > 0:
+                    markup.append(types.InlineKeyboardMarkup(row_width=2))
+                    for b in content[i]['buttons']:
+                        markup[-1].add(b)
+                else:
+                    markup.append(None)
+
+            dest = [342689125]
+            for _id in dest:
+                for i in range(len(content)):
+                    m = content[i]['content']
+                    mrk = markup[i]
+
+                    mtype = m[1]
+                    if m[0] == '':
+                        continue
+                    print('Sending part of message')
+                    try:
+                        if mtype == tp.MSG_TYPE.text:
+                            corr_m = m[0]
+                            field = re.findall('\?\?\?(\S+)\?\?\?', corr_m)
+                            for f in field:
+                                val = self.data_table.getFieldValue(uid, f.strip())
+                                corr_m = corr_m.replace('???' + f + '???', str(val))
+                            self.send_message(_id, corr_m, reply_markup=mrk,
+                                          parse_mode='html')  # TODO define abstract class MSG sending an apppropriate type of msg (method send())
+                        elif mtype == tp.MSG_TYPE.gallery:
+                            gal = [telebot.types.InputMediaPhoto(p) for p in content[i]['content'][0]]
+                            self.send_media_group(_id, gal)
+                        elif mtype == tp.MSG_TYPE.image:
+                            self.send_photo(_id, m[0], reply_markup=mrk)
+                        elif mtype == tp.MSG_TYPE.video:
+                            try:
+                                self.send_video(_id, m[0], reply_markup=mrk)
+                            except:
+                                corr_url = m[0].replace('https://dl.dropboxusercontent.com/', 'https://www.dropbox.com/')
+                                self.send_message(_id, corr_url)
+                        elif mtype == tp.MSG_TYPE.audio:
+                            self.send_audio(_id, m[0], reply_markup=mrk)
+                        elif mtype == tp.MSG_TYPE.audionote:
+                            self.send_voice(_id, m[0])
+                    except Exception as err:
+                        self.send_message(_id, m[0], reply_markup=mrk)
+                        print('Err in sayhello: ' + str(err))
+
+
         @self.message_handler(commands=['start'])
         @self.single_user_decorator
         def start_command(message):
             print('start_command')
             uid = message.from_user.id
             cid = message.chat.id
+            print('START from: ' + str(uid) + ' ' +str(message.from_user.username))
             if 'chiefid' in self.bot_state and uid in self.bot_state['chiefid']:
                 self.send_message(cid, 'Вы учитель.')
                 if cid == uid:
@@ -275,7 +341,7 @@ class SurveyBot(telebot.TeleBot):
             if uid in self.user_chat_id:
                 if self.user_chat_id[uid]!=-1 and self.user_chat_id[uid]!=cid:
                     try:
-                        link = self.create_chat_invite_link(int(cid)).invite_link
+                        link = self.create_chat_invite_link(int(self.user_chat_id[uid])).invite_link
                         self.send_message(cid, 'Перейдите в обучающий чат: ' + link)
                         return None
                     except:
@@ -668,7 +734,7 @@ class SurveyBot(telebot.TeleBot):
             self.send_chat_action(message.from_user.id, 'typing')
             self.answer_callback_query(callback_query.id)
             if not ('chiefid' in self.bot_state) or len(self.bot_state['chiefid']) == 0:
-                self.send_message(message.from_user.id,
+                self.send_message(callback_query.from_user.id,
                                   "Не могу создать урок, учитель не активировал опцию, поробуйте позже")
             else:
                 if (self.__check_user_info(callback_query.from_user.id)):
@@ -728,9 +794,7 @@ class SurveyBot(telebot.TeleBot):
             self.answer_callback_query(callback_query.id)
             print(callback_query)
             print('Sending request to save user')
-            if(callback_query.message.from_user.username == '' or callback_query.message.from_user.username == 'Nonw' or callback_query.message.from_user.username is None):
-                self.send_message(callback_query.message.chat.id, 'У вас не задано имя пользователя в Telegram. Пожалуйста задайте имя пользователя, потом наберите /start, чтоб продолжить\n')
-                return None
+
             try:
                 pupil_info = self.__create_user(self.survey_dict,
                                                 callback_query.from_user)  # TODO change to save next state, not current
@@ -1476,7 +1540,7 @@ class SurveyBot(telebot.TeleBot):
         pass
 
     def create_lesson_chat(self, pupil_user):
-        participants = [self.user.username, *self.bot_state['chiefname'], pupil_user.username]
+        participants = [self.user.username, *self.bot_state['chiefname'], str(pupil_user.id)]
         txt = commands.SCOMMANDS.create_a_chat + ';' + ';'.join(participants)
         self.send_message(self.bot_state['chiefid'], txt)
         pass
@@ -1675,6 +1739,21 @@ class SurveyBot(telebot.TeleBot):
             if sp == '/check':
                 callback = 'chk;' + title + ';' + user_status + ';' + addr
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+            if sp == '/url':
+                btns.append(types.InlineKeyboardButton(title, url=addr))
+            if sp is None or sp == '':
+                callback = 'chng;' + title + ';' + user_status + ';' + addr
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+        return btns
+
+    def __anonKeyFromContent(self, content, targetCell):
+        btns = []
+        self.user_cell_position[id] = targetCell
+        user_status = targetCell
+        open_input_flad = 0
+        for b in content:
+            title, addr, sp = b
+            title = title.strip()
             if sp == '/url':
                 btns.append(types.InlineKeyboardButton(title, url=addr))
             if sp is None or sp == '':
