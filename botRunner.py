@@ -766,7 +766,7 @@ class SurveyBot(telebot.TeleBot):
             else:
                 if (self.__check_user_info(callback_query.from_user.id)):
                     self.create_lesson_chat(callback_query.from_user)
-                    self.user_cell_position[callback_query.from_user.id] = callback_query.data.split(';')[2]
+                    self.user_cell_position[callback_query.from_user.id] = callback_query.data.split(';')[-1]
                     self.data_table.setFieldValue(callback_query.from_user.id, self.user_cell_position[callback_query.from_user.id], 'status')
                 elif self.user_chat_id[callback_query.from_user.id] != -1:
                     chat_id = int(self.user_chat_id[callback_query.from_user.id])
@@ -1158,7 +1158,7 @@ class SurveyBot(telebot.TeleBot):
 
         self.data_table.setFieldValues(uid, [1, 1], ['curr_lesson', 'lessons_at_once'])
         level = self.data_table.getFieldValue(uid, 'level')
-        if level is None or level == '':
+        if level is None or level == '' or result_A1>1:
             txt += 'Сейчас мы посмотрим ваш тест, и преподаватель предложит, с чего лучше начать!\n'
             txt += 'Результат теста: \n'
             txt += 'A1: ' + result_A1 + '/11\n'
@@ -1195,7 +1195,7 @@ class SurveyBot(telebot.TeleBot):
             message.from_user.id = uid
             message.chat.id = chat_id
 
-            addr = 'intro!A7'
+            addr = self.user_cell_position[uid]
             '''
             txt += 'Через минуту, здесь появится первый урок...\n'
             txt += 'Да, не через секунду, а именно через МИНУТУ!\n'
