@@ -1805,7 +1805,8 @@ class SurveyBot(telebot.TeleBot):
         user_dict = {}
         user_tmp_dict = eval(str(user_dscr))
         for k in pupil_dict.keys():
-            user_dict[k] = pupil_dict[k]['defval']
+            if pupil_dict[k]['defval']:
+                user_dict[k] = pupil_dict[k]['defval']
 
         for k in pupil_dict.keys():
             if pupil_dict[k]['source'] in user_tmp_dict.keys():

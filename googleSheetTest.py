@@ -494,6 +494,7 @@ class GoogleTableReader():
         for pupil in self.updateQueue:
             self.updateQueue[pupil] = list(set(self.updateQueue[pupil]))
 
+
         body = {'valueInputOption': 'RAW', 'data': []}
         for pupil in self.updateQueue:
             for f in self.updateQueue[pupil]:
