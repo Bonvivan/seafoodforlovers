@@ -101,6 +101,10 @@ class GoogleTableReader():
         self.pupilsData, self.fieldsIndexer = self.getPupilsDatabase()
 
     @my_shiny_new_decorator
+    def forceRead(self):
+        self.pupilsData, self.fieldsIndexer = self.getPupilsDatabase()
+
+    @my_shiny_new_decorator
     def __resetAccessCounter(self):
         threading.Timer(60.0, self.__resetAccessCounter).start()
         print('Access counter, read: ' + str(self.read_counter))
@@ -124,29 +128,37 @@ class GoogleTableReader():
 
         return header
 
-    def __readHeader(self, sheet = 'pupils', rng = 'A1:AZ4'):
+    def __readHeader(self, sheet = 'pupils', rng = 'A1:BZ4'):
         self.read_counter+=1
-        header = [[],[],[],[]]
+        header = [[],[],[],[],[]]
         content = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                                range=sheet + '!' + rng).execute()['values']
+        nested_len = len(content[0])
+        content[0] = content[0] + [''  ] * (nested_len - len(content[0]))
+        content[1] = content[1] + [''  ] * (nested_len - len(content[1]))
+        content[2] = content[2] + [''  ] * (nested_len - len(content[2]))
+        content[3] = content[3] + ['.*'] * (nested_len - len(content[3]))
+
         header[0] = content[0] + ['']
-        header[2] = content[2] + [0]
+        header[1] = content[1] + ['']
+        header[2] = content[2] + ['']
         header[3] = content[3] + ['.*']
         addr = re.match('(\w+)(\d+):(\w+)(\d+)', rng)
         count = self.alphabet.index(addr[1])
         for h in header[0][:-1]:
-            header[1].append(sheet + '!' + self.alphabet[count])
+            header[-1].append(sheet + '!' + self.alphabet[count])
             count+=1
-        header[1].append('')
+        header[-1].append('')
 
         for i in range(len(header[0])):
             r = re.match("(\w+)!([A-Z]+\d+:[A-Z]+\d+)", header[0][i])
             if not (r is None):
                 tmp = self.__readHeader(sheet=r[1], rng=r[2])
-                header[0] = header[0][:i] + tmp[0][:-1] + header[0][i + 1:]
-                header[1] = header[1][:i] + tmp[1][:-1] + header[1][i + 1:]
-                header[2] = header[2][:i] + tmp[2][:-1] + header[2][i + 1:]
-                header[3] = header[3][:i] + tmp[3][:-1] + header[3][i + 1:]
+                header[0]  = header[ 0][:i] + tmp[ 0][:-1] + header[ 0][i + 1:]
+                header[-1] = header[-1][:i] + tmp[-1][:-1] + header[-1][i + 1:]
+                header[1]  = header[ 1][:i] + tmp[ 1][:-1] + header[ 1][i + 1:]
+                header[2]  = header[ 2][:i] + tmp[ 2][:-1] + header[ 2][i + 1:]
+                header[3]  = header[ 3][:i] + tmp[ 3][:-1] + header[ 3][i + 1:]
 
         return header
 
@@ -170,7 +182,7 @@ class GoogleTableReader():
 
         id_column = [int(row[id_ind]) for row in data]
 
-        self.pupilRowIndex = {id_column[c]: c + len(head) + 1 for c in range(len(data))}
+        self.pupilRowIndex = {id_column[c]: c + len(head) for c in range(len(data))}
 
         count = 0
         for id in id_column:
@@ -192,7 +204,7 @@ class GoogleTableReader():
         self.read_counter += 1
         header = self.__readHeader()
 
-        readings = [h + str(len(header)+1) + ':' + h.split('!')[1] + '999' for h in header[1][:-1]]
+        readings = [h + str(len(header)) + ':' + h.split('!')[1] + '999' for h in header[-1][:-1]]
 
         resp = self.service.spreadsheets().values().batchGet(spreadsheetId=self.spreadsheetId,
                                                                    ranges=readings).execute()['valueRanges']
@@ -218,7 +230,7 @@ class GoogleTableReader():
         if key_column=='id':
             if id in self.pupilsData:
                 if force:
-                    rng = self.__addRowToAddres(self.header[1][self.fieldsIndexer.get(fieldname, -2)], self.pupilRowIndex[id])
+                    rng = self.__addRowToAddres(self.header[-1][self.fieldsIndexer.get(fieldname, -2)], self.pupilRowIndex[id])
                     result = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                                        range=rng).execute()['values'][0][0]
                 else:
@@ -227,7 +239,7 @@ class GoogleTableReader():
             for p in self.pupilsData:
                 if str(self.pupilsData[p][self.fieldsIndexer[key_column]]) == str(id):
                     if force:
-                        rng = self.__addRowToAddres(self.header[1][self.fieldsIndexer.get(fieldname, -2)], self.pupilRowIndex[p])
+                        rng = self.__addRowToAddres(self.header[-1][self.fieldsIndexer.get(fieldname, -2)], self.pupilRowIndex[p])
                         result = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
                                                                           range=rng).execute()['values'][0][0]
                     else:
@@ -287,10 +299,10 @@ class GoogleTableReader():
                 self.pupilsData[id][-1] = None
         else:
             for p in self.pupilsData:
-                if str(p[self.fieldsIndexer.get(key_column, -1)])==str(id):
-                    key_id = p[self.fieldsIndexer.get('id', -1)]
+                if str(self.pupilsData[p][self.fieldsIndexer.get(key_column, -1)])==str(id):
+                    key_id = self.pupilsData[p][self.fieldsIndexer.get('id', -1)]
                     for h, v in zip(fieldnames, values):
-                        self.pupilsData[key_id][h] = v
+                        self.pupilsData[key_id][h] = str(v)
                     self.pupilsData[key_id][-1] = None
                     break
 
@@ -311,7 +323,7 @@ class GoogleTableReader():
                 self.pupilsData[id][-1] = None
         else:
             for p in self.pupilsData:
-                if p[self.fieldsIndexer.get(key_column, -1)] == id:
+                if self.pupilsData[p][self.fieldsIndexer.get(key_column, -1)] == id:
                     key_id = p[self.fieldsIndexer.get('id', -1)]
                     self.pupilsData[key_id][self.fieldsIndexer.get(fieldname, -1)] = value
                     self.pupilsData[key_id][-1] = None
@@ -425,10 +437,11 @@ class GoogleTableReader():
         pupil_data_struct = {}
         header_rng  = sheetName + '!' + rng
         self.read_counter += 1
-        results = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId, range=header_rng).execute()
-        names  = results['values'][0]
-        source = results['values'][1]
-        regex  = results['values'][3]
+        results = self.header
+        names  = results[0]
+        source = results[1]
+        defval = results[2]
+        regex  = results[3]
         for n in names:
             r = re.match("(\w+)!([A-Z]+\d+:[A-Z]+\d+)", n)
             if not (r is None):
@@ -436,9 +449,10 @@ class GoogleTableReader():
                 names  = names  + list(tmp.keys())
                 source = source + [tmp[n]['source'] for n in tmp.keys()]
                 regex  = regex  + [tmp[n]['regex' ] for n in tmp.keys()]
+                defval = defval + [tmp[n]['defval'] for n in tmp.keys()]
 
-        for i in range(len(names)):
-            pupil_data_struct[names[i]]={'source':source[i], 'required':False, 'regex':regex[i]}
+        for i in range(len(names[:-1])):
+            pupil_data_struct[names[i]]={'source':source[i], 'defval': defval[i], 'regex':regex[i]}
 
         return pupil_data_struct
 
@@ -476,6 +490,7 @@ class GoogleTableReader():
     def forceWrite(self):
         return self.__updateRemoteSpreadsheet()
     def __updateRemoteSpreadsheet(self):
+        self.header = self.__readHeader()
         for pupil in self.updateQueue:
             self.updateQueue[pupil] = list(set(self.updateQueue[pupil]))
 
@@ -483,7 +498,7 @@ class GoogleTableReader():
         for pupil in self.updateQueue:
             for f in self.updateQueue[pupil]:
                 if f in self.fieldsIndexer:
-                    addr  = self.__addRowToAddres(self.header[1][self.fieldsIndexer[f]], self.pupilRowIndex[pupil])
+                    addr  = self.__addRowToAddres(self.header[-1][self.fieldsIndexer[f]], self.pupilRowIndex[pupil])
                     value = self.pupilsData[pupil][self.fieldsIndexer[f]]
                     body['data'].append({'range': addr, 'values':[[value]]})
         resp = True

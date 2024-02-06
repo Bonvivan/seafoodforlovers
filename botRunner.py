@@ -46,14 +46,12 @@ class SurveyBot(telebot.TeleBot):
 
     now_processing_id = -1
 
-    PRICE_1 = types.LabeledPrice(label="3 месяца обучения", amount=49000 * 100)  # в копейках (руб)
-    PRICE_2 = types.LabeledPrice(label="6 месяцев обучения", amount=92000 * 100)  # в копейках (руб)
-    PRICE_3 = types.LabeledPrice(label="12 месяцев обучения", amount=179000 * 100)  # в копейках (руб)
-    PRICE_4 = types.LabeledPrice(label="1 неделя обучения", amount=3900 * 100)  # в копейках (руб)
+
     PAYMENT_TOCKEN = ''
 
     initialisation = False
 
+    logfile = ''
 
     def __init__(self, bot_token, data_table, pay_tocken):
         super().__init__(bot_token, threaded=False)
@@ -78,11 +76,15 @@ class SurveyBot(telebot.TeleBot):
         self.survey_dict = self.data_table.getPupilStruct(sheetName='pupils')
         self.__invert_datasource_link(self.survey_dict)
 
-        threading.Timer(30.0, self.checkSchedule).start()
+        threading.Timer(60.0, self.checkSchedule).start()
 
         self.init_state()
-
         self.initialisation = False
+        #str(datetime.utcnow())
+        self.logfile = open('resources\\LOGS\\LOG_' + '.txt', 'a', encoding="utf-8")
+
+        pass
+
 
         # pre checkout  (must be answered in 10 seconds)
         @self.pre_checkout_query_handler(lambda query: True)
@@ -101,18 +103,12 @@ class SurveyBot(telebot.TeleBot):
             except:
                 self.send_message(self.bot_state['chiefid'], '!!!' + str(message.from_user.username) + ' ОПЛАТИЛ КУРС, ПРОВЕРЬ ТАБЛИЦУ!!!: \n')
             uid = message.from_user.id
-            if message.successful_payment.invoice_payload=='mounth3':
-                self.data_table.setFieldValues(uid, ['0',str(message.successful_payment), str(datetime.utcnow().isoformat()), 90, 60, 0],
-                                               ['score','payment_info', 'payment_date', 'period', 'lesson_num', 'curr_lesson'])
-            if message.successful_payment.invoice_payload=='mounth6':
-                self.data_table.setFieldValues(uid, ['0',str(message.successful_payment), str(datetime.utcnow().isoformat()), 180, 120, 0],
-                                               ['score','payment_info', 'payment_date', 'period', 'lesson_num', 'curr_lesson'])
-            if message.successful_payment.invoice_payload=='mounth12':
-                self.data_table.setFieldValues(uid, ['0',str(message.successful_payment), str(datetime.utcnow().isoformat()), 360, 240, 0],
-                                               ['score','payment_info', 'payment_date', 'period', 'lesson_num', 'curr_lesson'])
-            if message.successful_payment.invoice_payload=='week':
-                self.data_table.setFieldValues(uid, ['0',str(message.successful_payment), str(datetime.utcnow().isoformat()), 8, 4, 0],
-                                               ['score','payment_info', 'payment_date', 'period', 'lesson_num', 'curr_lesson'])
+            for opt in commands.PAY_OPTIONS.options:
+                if message.successful_payment.invoice_payload == opt['invoice_payload']:
+                    self.data_table.setFieldValues(uid, ['0',str(message.successful_payment),
+                                                         str(datetime.utcnow().isoformat()), opt['period'], opt['num'], 0],
+                                                        ['score','payment_info', 'payment_date', 'period', 'lesson_num', 'curr_lesson'])
+
             #self.user_cell_position[uid] = 'teacher!A6'
             self.__savestatus(uid,self.user_cell_position[uid])
             self.say_hello(uid, cid)
@@ -126,8 +122,6 @@ class SurveyBot(telebot.TeleBot):
                 return None
             cell = message.text.split(';')[-1]
             self.show_cell(message.chat.id, cell)
-
-
 
         @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('/moveto', m.text) == len('/moveto'))
         @self.single_user_decorator
@@ -286,7 +280,6 @@ class SurveyBot(telebot.TeleBot):
                 else:
                     markup.append(None)
 
-            dest = [342689125]
             for _id in dest:
                 for i in range(len(content)):
                     m = content[i]['content']
@@ -321,9 +314,11 @@ class SurveyBot(telebot.TeleBot):
                         elif mtype == tp.MSG_TYPE.audionote:
                             self.send_voice(_id, m[0])
                     except Exception as err:
-                        self.send_message(_id, m[0], reply_markup=mrk)
-                        print('Err in sayhello: ' + str(err))
-
+                        try:
+                            self.send_message(_id, m[0], reply_markup=mrk)
+                        except:
+                            print('Err in sayhello: ' + str(_id) + ': ' + str(err) + '. Continue spam sending...')
+                            pass
 
         @self.message_handler(commands=['start'])
         @self.single_user_decorator
@@ -334,11 +329,17 @@ class SurveyBot(telebot.TeleBot):
 
             print('START from: ' + str(uid) + ' ' + str(message.from_user.username))
 
+            self.data_table.forceRead()
+
             if 'chiefid' in self.bot_state and uid in self.bot_state['chiefid']:
                 self.send_message(cid, 'Вы учитель.')
                 if cid == uid:
                     self.send_message(cid, 'Нельзя быть учителем и учеником одновременно.')
+                    self.data_table.allUpdate()
+                    self.send_message(cid, 'Синхронизация таблицы проведена!')
                 return None
+           # else:
+           #     self.user_chat_id[uid] = self.data_table.getFieldValue(uid, 'chat_id')
 
             if uid in self.user_chat_id:
                 if self.user_chat_id[uid]!=-1 and self.user_chat_id[uid]!=cid:
@@ -367,10 +368,12 @@ class SurveyBot(telebot.TeleBot):
                 uid = message.from_user.id
                 self.user_cell_position.pop(uid,None)
                 self.user_chat_id.pop(uid, None)
-                self.user_command[uid]=[]#.pop(uid, None)
+                self.user_command[uid]=[]
                 self.teacher_command[uid]=[]
                 self.schedule.pop(uid, None)
-                self.user_cell_position[message.from_user.id] = 'intro!A1'
+                pupil_info = self.__create_user(self.survey_dict,
+                                                message.from_user)  # TODO change to save next state, not current
+                self.data_table.addPupil(pupil_info)
             else:
                 self.init_state(message.from_user.id)
                 self.user_cell_position = {**self.user_cell_position, **user[0]}
@@ -551,113 +554,118 @@ class SurveyBot(telebot.TeleBot):
             self.send_chat_action(cid, 'typing')
 
             teacher = False
-
+            bot_control = False
             hard_commands = {}
+            txt = ''
 
+            commands_guru = commands.cmdGuru(commands.UCOMMANDS)
             if 'chiefid' in self.bot_state and uid in self.bot_state['chiefid']:
-                self.send_message(cid, 'Вы учитель. Статус ученика:')
-                uid = self.__find_keys(self.user_chat_id, cid)[0]
-                commands_guru = commands.cmdGuru(commands.TCOMMANDS)
-                teacher = True
-            else:
-                commands_guru = commands.cmdGuru(commands.UCOMMANDS)
+                uid_list = self.__find_keys(self.user_chat_id, cid)
+                if uid_list:
+                    uid = uid_list[0]
+                    self.send_message(cid, 'Вы учитель. Статус ученика:')
+                    commands_guru = commands.cmdGuru(commands.TCOMMANDS)
+                    teacher = True
+                else:
+                    self.send_message(cid, 'Вы учитель. Управление ботом:')
+                    commands_guru = commands.cmdGuru(commands.GCOMMANDS)
+                    bot_control = True
 
-            user_status = self.data_table.getPupilStatus(uid)
-            if (user_status is None):
-                self.send_message(cid, 'Вы новый ученик: \n /start чтоб перейти к обучению.')
-                return None
+            if not(bot_control):
+                user_status = self.data_table.getPupilStatus(uid)
+                if not(user_status):
+                    self.send_message(cid, 'Вы новый ученик: \n /start чтоб перейти к обучению.')
+                    return None
+                elif int(user_status['chat_id']) == -1:
+                    self.send_message(cid, "Вы проходите опрос.")
+                    self.send_message(cid, "\n/start чтоб перейти к последнему вопросу;")
+                    return None
 
-            elif int(user_status['chat_id']) == -1:
-                self.send_message(cid, "Вы проходите опрос.")
-                self.send_message(cid, "\n/start чтоб перейти к последнему вопросу;")
-                return None
+                chat_id = int(self.user_chat_id[uid])
+                if cid != chat_id:
+                    try:
+                        link = self.create_chat_invite_link(int(cid)).invite_link
+                        self.send_message(cid, "Перейдите в обучающий чат: " + link)
+                    except:
+                        pass
+                when = datetime.fromisoformat(user_status['date_start'])
+                txt += "Начало обучения " + str(when.date())
+                if 'curr_lesson' in user_status.keys() and user_status['curr_lesson'] != '':
+                    curr_lesson = int(user_status['curr_lesson'])
+                    txt += '\n<b>Текущий урок: ' + str(curr_lesson) +'</b>'
+                self.send_message(cid, txt, parse_mode='html')
+                txt = ''
+                if chat_id != cid:
+                    link = self.create_chat_invite_link(chat_id).invite_link
+                    self.send_message(cid, "Ваш чат для обучения: " + link)
+                    return None
+                if 'call_message_id' in user_status.keys() and user_status['call_message_id'] != '':
+                    r1, r2, when = user_status['call_message_id'].split(';')
+                    when = datetime.fromisoformat(when)
+                    self.send_message(cid, "Отправлен запрос на проверку " +
+                                      str(when.date()) + ' в ' +
+                                      str(when.hour) + ':' + str(when.minute) + 'GMT;')
 
-            txt = ''
-            chat_id = int(self.user_chat_id[uid])
-            if cid != chat_id:
-                try:
-                    link = self.create_chat_invite_link(int(cid)).invite_link
-                    self.send_message(cid, "Перейдите в обучающий чат: " + link)
-                except:
-                    pass
-            when = datetime.fromisoformat(user_status['date_start'])
-            txt += "Начало обучения " + str(when.date())
-            if 'curr_lesson' in user_status.keys() and user_status['curr_lesson'] != '':
-                curr_lesson = int(user_status['curr_lesson'])
-                txt += '\n<b>Текущий урок: ' + str(curr_lesson) +'</b>'
-            self.send_message(cid, txt, parse_mode='html')
-            txt = ''
-            if chat_id != cid:
-                link = self.create_chat_invite_link(chat_id).invite_link
-                self.send_message(cid, "Ваш чат для обучения: " + link)
-                return None
-            if 'call_message_id' in user_status.keys() and user_status['call_message_id'] != '':
-                r1, r2, when = user_status['call_message_id'].split(';')
-                when = datetime.fromisoformat(when)
-                self.send_message(cid, "Отправлен запрос на проверку " +
-                                  str(when.date()) + ' в ' +
-                                  str(when.hour) + ':' + str(when.minute) + 'GMT;')
+                if 'tech_call' in user_status.keys() and user_status['tech_call'] != '':
+                    r1, r2, when = user_status['tech_call'].split(';')
+                    when = datetime.fromisoformat(when)
+                    self.send_message(cid, "Отправлено уведомление о сбое " +
+                                      str(when.date()) + ' в ' +
+                                      str(when.hour) + ':' + str(when.minute) + 'GMT;')
+                    commands_guru.setMask('nonfunziona', False)
+                    commands_guru.setMask('funziona', True)
+                    #txt += "\n/funziona - снять запрос на вызов преподавателя;\n"
 
-            if 'tech_call' in user_status.keys() and user_status['tech_call'] != '':
-                r1, r2, when = user_status['tech_call'].split(';')
-                when = datetime.fromisoformat(when)
-                self.send_message(cid, "Отправлено уведомление о сбое " +
-                                  str(when.date()) + ' в ' +
-                                  str(when.hour) + ':' + str(when.minute) + 'GMT;')
-                commands_guru.setMask('nonfunziona', False)
-                commands_guru.setMask('funziona', True)
-                #txt += "\n/funziona - снять запрос на вызов преподавателя;\n"
+                if 'question' in user_status.keys() and user_status['question'] != '':
+                    r1, r2, when = user_status['question'].split(';')
+                    when = datetime.fromisoformat(when)
+                    self.send_message(cid, "Отправлено уведомление о вопросе " +
+                                      str(when.date()) + ' в ' +
+                                      str(when.hour) + ':' + str(when.minute) + 'GMT;')
+                    commands_guru.setMask('aiuto'  , False)
+                    commands_guru.setMask('risolto', True)
+                    #txt += "\n/risolto - снять запрос на вызов преподавателя;\n"
 
-            if 'question' in user_status.keys() and user_status['question'] != '':
-                r1, r2, when = user_status['question'].split(';')
-                when = datetime.fromisoformat(when)
-                self.send_message(cid, "Отправлено уведомление о вопросе " +
-                                  str(when.date()) + ' в ' +
-                                  str(when.hour) + ':' + str(when.minute) + 'GMT;')
-                commands_guru.setMask('aiuto'  , False)
-                commands_guru.setMask('risolto', True)
-                #txt += "\n/risolto - снять запрос на вызов преподавателя;\n"
+                if 'delayed_event' in user_status.keys() and user_status['delayed_event'] != '':
+                    when, cell = user_status['delayed_event'].split(';')
+                    when = datetime.fromisoformat(when)
+                    self.send_message(cid, "Следующий урок будет выслан: " +
+                                      str(when.date()) + ' в ' +
+                                      str(when.hour) + ':' + str(when.minute) + 'GMT;')
+                if 'score' in user_status.keys() and user_status['score'] != '':
+                    score = int(user_status['score'])
+                    self.send_message(cid, "На вашем счету: " + str(score) + ' баллов.')
 
-            if 'delayed_event' in user_status.keys() and user_status['delayed_event'] != '':
-                when, cell = user_status['delayed_event'].split(';')
-                when = datetime.fromisoformat(when)
-                self.send_message(cid, "Следующий урок будет выслан: " +
-                                  str(when.date()) + ' в ' +
-                                  str(when.hour) + ':' + str(when.minute) + 'GMT;')
-            if 'score' in user_status.keys() and user_status['score'] != '':
-                score = int(user_status['score'])
-                self.send_message(cid, "На вашем счету: " + str(score) + ' баллов.')
+                if 'payment_date' in user_status.keys() and user_status['payment_date'] != '':
+                    when = datetime.fromisoformat(user_status['payment_date'])
+                    period = int(user_status['period'])
+                    l_num = int(user_status['lesson_num'])
+                    self.send_message(cid, 'Оплата произведена: ' +
+                                      str(when.date()) + '\nВы оплатили курс на ' + str(period) + ' дней, ' + str(l_num) + ' уроков.')
+                    rest = (datetime.utcnow().date() - when.date()).days
+                    schedule, txt_sc = tp.parseFreeze(user_status['freeze'])
+                    for s in schedule:
+                        rest += s[2]
 
-            if 'payment_date' in user_status.keys() and user_status['payment_date'] != '':
-                when = datetime.fromisoformat(user_status['payment_date'])
-                period = int(user_status['period'])
-                l_num = int(user_status['lesson_num'])
-                self.send_message(cid, 'Оплата произведена: ' +
-                                  str(when.date()) + '\nВы оплатили курс на ' + str(period) + ' дней, ' + str(l_num) + ' уроков.')
-                rest = (datetime.utcnow().date() - when.date()).days
-                schedule, txt_sc = tp.parseFreeze(user_status['freeze'])
-                for s in schedule:
-                    rest += s[2]
+                    txt += 'История заморозок курса: \n' + txt_sc
+                    if len(schedule)>0:
+                        if schedule[-1][1]=='nowadays':
+                            txt += "<b>Сейчас курс заморожен с " + str(schedule[-1][0]) + '</b>'
+                            commands_guru.setMask('congelare', False)
 
-                txt += 'История заморозок курса: \n' + txt_sc
-                if len(schedule)>0:
-                    if schedule[-1][1]=='nowadays':
-                        txt += "<b>Сейчас курс заморожен с " + str(schedule[-1][0]) + '</b>'
-                        commands_guru.setMask('congelare', False)
+                    txt += "\nДо конца курса осталось " + str(period - rest) + ' дней;\n'
+                    txt += "Можно получить уроков <b>вне очереди: " + str(3-int(user_status['lessons_at_once'])) + '</b>\n'
+                else:
+                    commands_guru.setMask('congelare', False)
+                    commands_guru.setMask('scongelare', False)
 
-                txt += "\nДо конца курса осталось " + str(period - rest) + ' дней;\n'
-                txt += "Можно получить уроков <b>вне очереди: " + str(3-int(user_status['lessons_at_once'])) + '</b>\n'
-            else:
-                commands_guru.setMask('congelare', False)
-                commands_guru.setMask('scongelare', False)
-
-            if not(self.user_frozen[uid]):
-                if uid in self.user_command:
-                    for c in self.user_command[uid]:
-                        try:
-                            txt += '\n//' + str(c[0]) + ' - ' + commands.UCOMMANDS.soft_commands[str(c[0])]
-                        except Exception as e:
-                            print('Error in status_command: ' + str(e))
+                if not(self.user_frozen[uid]):
+                    if uid in self.user_command:
+                        for c in self.user_command[uid]:
+                            try:
+                                txt += '\n//' + str(c[0]) + ' - ' + commands.UCOMMANDS.soft_commands[str(c[0])]
+                            except Exception as e:
+                                print('Error in status_command: ' + str(e))
 
             if (teacher):
                 txt += '\nКомманды учителя:'
@@ -682,6 +690,19 @@ class SurveyBot(telebot.TeleBot):
             self.read_commands(message)
         pass
 
+        @self.callback_query_handler(func=lambda c: c.data.startswith('r_pay'))
+        @self.single_user_decorator
+        def pay_hendler(callback_query: types.CallbackQuery):
+            self.answer_callback_query(callback_query.id)
+            stat = self.data_table.getPupilStatus(callback_query.from_user.id)
+            self.pay_request(callback_query.from_user.id, stat.get('score', 0))
+            try:
+                self.edit_message_reply_markup(callback_query.message.chat.id,
+                                               message_id=callback_query.message.message_id, reply_markup='')
+            except:
+                pass
+            pass
+
         @self.callback_query_handler(func=lambda c: c.data.startswith('pay'))
         @self.single_user_decorator
         def pay_hendler(callback_query: types.CallbackQuery):
@@ -691,7 +712,11 @@ class SurveyBot(telebot.TeleBot):
             dptr = cmd['args'][0]
             addr = cmd['args'][1]
             subscr_id = cmd['args'][2]
-            self.pay_command(callback_query.message.chat.id, dptr, addr, int(subscr_id))
+            if subscr_id=='onl':
+                self.pay_online_request(callback_query.from_user.id)
+                return None
+
+            self.pay_command(callback_query.message.chat.id, dptr, addr, subscr_id)
             try:
                 self.edit_message_reply_markup(callback_query.message.chat.id, message_id=callback_query.message.message_id - (
                         callback_query.message.from_user.username != self.user.username), reply_markup='')
@@ -802,11 +827,11 @@ class SurveyBot(telebot.TeleBot):
                                                 callback_query.from_user)  # TODO change to save next state, not current
                 self.data_table.addPupil(pupil_info)
                 if(not(self.data_table.forceWrite())):
-                    print("!!!!ERROR __create_user: !!!!!" )
+                    print("!!!!ERROR1 __create_user: !!!!!" )
                     return None
             except Exception as err:
                 self.data_table.critical_flag = False
-                print("!!!!ERROR __create_user: !!!!!" + str(err))
+                print("!!!!ERROR2 __create_user: !!!!!" + str(err))
                 return None
 
 
@@ -838,7 +863,7 @@ class SurveyBot(telebot.TeleBot):
 
         @self.callback_query_handler(func=lambda c: c.data.startswith('unch'))
         @self.single_user_decorator
-        def goback_callback_button(callback_query: types.CallbackQuery):
+        def goback_callback_button(callback_query: types.CallbackQuery, demo=False):
             print('goback_callback_button')
             try:
                 self.answer_callback_query(callback_query.id)
@@ -848,6 +873,22 @@ class SurveyBot(telebot.TeleBot):
             callback_query.message.text = callback_query.data.split(';')[1]
             try:
                 self.goahead(callback_query.message, *callback_query.data.split(';')[2:])
+            except Exception as err:
+                print('self.goahead(callback_query.message, *callback_query.data.split... ' + str(err))
+                pass
+
+        @self.callback_query_handler(func=lambda c: c.data.startswith('demo'))
+        @self.single_user_decorator
+        def demo_callback_button(callback_query: types.CallbackQuery, demo=False):
+            print('goback_callback_button')
+            try:
+                self.answer_callback_query(callback_query.id)
+            except:
+                pass
+            callback_query.message.from_user.id = callback_query.from_user.id
+            callback_query.message.text = callback_query.data.split(';')[1]
+            try:
+                self.goahead(callback_query.message, *callback_query.data.split(';')[2:], demo = True)
             except Exception as err:
                 print('self.goahead(callback_query.message, *callback_query.data.split... ' + str(err))
                 pass
@@ -916,6 +957,10 @@ class SurveyBot(telebot.TeleBot):
             else:
                 self.now_processing_id = uid
             try:
+                try:
+                    self.logfile.write(str(uid) + ': ' + '; does: ' + str(args[0].data) + '.')
+                except:
+                    self.logfile.write(str(uid) + ': ' + '; does: ' + str(args[0].text) + '.')
                 if type(args[0]) == telebot.types.CallbackQuery:
                     cid = args[0].message.chat.id
                     #self.send_chat_action(cid, 'typing')
@@ -924,10 +969,13 @@ class SurveyBot(telebot.TeleBot):
                     #self.send_chat_action(cid, 'typing')
 
                 res = function_to_decorate(*args)
+                self.logfile.write('Success!\n')
 
             except Exception as err:
                 print(err)
+                self.logfile.write('Error! ' + str(err) + '\n')
                 res = None
+            self.logfile.flush()
             self.now_processing_id = -1
             return res
 
@@ -1042,11 +1090,12 @@ class SurveyBot(telebot.TeleBot):
                 curr_lsn = int(self.data_table.getFieldValue(uid, 'curr_lesson')) +1
                 self.__savestatus(uid, self.user_cell_position[uid], [curr_lsn, 1], ['curr_lesson', 'lessons_at_once'])
                 self.cleanSchedule(uid)
+                self.data_table.forceWrite()
         pass
 
     def cleanSchedule(self, uid):
-        self.data_table.setFieldValue(uid, None, 'delayed_event')
-        self.schedule.pop(uid)
+        self.data_table.setFieldValue(uid, '', 'delayed_event')
+        self.schedule.pop(uid, '')
 
     def start_lesson(self, uid, chat_id, message):
         print('start_lesson')
@@ -1169,7 +1218,7 @@ class SurveyBot(telebot.TeleBot):
         if 'payment_date' in stat and stat['payment_date'] != '':
             when = datetime.fromisoformat(stat['payment_date'])
             period = int(stat['period'])
-            overdue = (period - ((datetime.utcnow().date() - when.date()).days))<=0
+            overdue = ((period - ((datetime.utcnow().date() - when.date()).days))<=0)
 
         if overdue:
             self.send_message(self.user_chat_id[uid], 'Срок прохождения курса истек.')
@@ -1177,7 +1226,7 @@ class SurveyBot(telebot.TeleBot):
 
         if int(stat['curr_lesson'])>=int(stat['lesson_num']):
             self.send_message(self.user_chat_id[uid], 'Для перехода к следующему уроку нужно оплатить курс.')
-            self.pay_online_request(uid, stat.get('score',0))
+            self.pay_request(uid, stat.get('score',0))
             return False
         return True
 
@@ -1189,8 +1238,10 @@ class SurveyBot(telebot.TeleBot):
         txt  = 'Для оплаты перейдите по ссылке:'
         url = 'https://langusto.online/zapis2024'
         markup.add((types.InlineKeyboardButton('Оплатить курс 🤑', url=url)))
-        callback = 'paid;' + user_status + ';' + user_status + ';'
+        callback = 'paid;' + 'Оплачено;' + user_status + ';' + user_status
         markup.add((types.InlineKeyboardButton('Оплачено👌', callback_data=callback)))
+        callback = 'unch;' + 'Назад;' + user_status + ';' + user_status
+        markup.add((types.InlineKeyboardButton('Назад', callback_data=callback)))
         self.send_message(cid, txt, reply_markup=markup, parse_mode='html')
         return True
 
@@ -1199,17 +1250,19 @@ class SurveyBot(telebot.TeleBot):
         markup = types.InlineKeyboardMarkup(row_width=2)
         user_status = self.user_cell_position[uid]
         cid = self.user_chat_id[uid]
-        txt  = 'Есть несколько курсов на выбор, цена указана <b>без учета скидки</b>.\n'
+        txt  = 'Есть несколько опций на выбор: '
+        '''
+        txt += 'цена указана <b>без учета скидки</b>.\n'
         txt += 'У вас на счету <b>' + str(score) + ' баллов</b>\n'
         txt += 'Скидка равна <b>' + str(int(score)*10) + ' рублей</b>\n'
+        '''
 
-        titles = ['3 месяца за 49000р;',
-                  '6 месяцев за 91000р',
-                  '12 месяцев за 179000р',
-                  '1 неделя за 3900р']
-        for i in range(1,5):
-            callback = 'pay;' + user_status + ';' + user_status + ';' + str(i)
-            markup.add((types.InlineKeyboardButton(titles[i-1], callback_data=callback)))
+        for k_opt in commands.PAY_OPTIONS.options.keys():
+            callback = 'pay;' + user_status + ';' + user_status + ';' + k_opt
+            markup.add(types.InlineKeyboardButton(commands.PAY_OPTIONS.options[k_opt]['button'], callback_data=callback))
+
+        callback = 'pay;' + user_status + ';' + user_status + ';' + 'onl'
+        markup.add(types.InlineKeyboardButton('Больше опций', callback_data=callback))
 
         self.send_message(cid, txt, reply_markup=markup, parse_mode='html')
 
@@ -1313,7 +1366,10 @@ class SurveyBot(telebot.TeleBot):
                         chat_ids = call_chat_id.split(',')
                         msg_ids  = call_msg_id .split(',')
                         for c_id, m_id in zip(chat_ids, msg_ids):
-                            self.edit_message_text('Урок проверен', chat_id=int(c_id), message_id=int(m_id))
+                            try:
+                                self.edit_message_text('Урок проверен', chat_id=int(c_id), message_id=int(m_id))
+                            except:
+                                pass
                     self.data_table.setFieldValue(chat_id, None, 'call_message_id', key_column='chat_id')
                 else:
                     return False
@@ -1390,11 +1446,13 @@ class SurveyBot(telebot.TeleBot):
         self.goahead(message, dptr, addr[0])
         pass
 
-    def goahead(self, message, dptr, addr):  # processing of an incoming message
+    def goahead(self, message, dptr, addr, demo=False):  # processing of an incoming message
         print('goahead')
         uid = message.from_user.id
         chat_id = message.chat.id
 
+        if not(addr):
+            addr = dptr
 
         if 'chiefid' in self.bot_state and message.from_user.id in self.bot_state['chiefid']:
             pupil_id = self.__find_keys(self.user_chat_id, chat_id)
@@ -1407,7 +1465,7 @@ class SurveyBot(telebot.TeleBot):
         cmd = ''
         if not (uid in self.user_cell_position):
             self.user_cell_position[uid] = dptr
-        if (not (self.user_cell_position[uid] == dptr)):
+        if (not (self.user_cell_position[uid] == dptr) and not(demo)):
             return None
 
         # update user status in the chat
@@ -1423,7 +1481,8 @@ class SurveyBot(telebot.TeleBot):
         # update user status in the chat
         self.user_cell_position[uid] = addr  # jumping to the next cell in user status
         try:
-            self.__savestatus(uid, self.user_cell_position[uid])  # saving status (cell id where the user is)
+            if not demo:
+                self.__savestatus(uid, self.user_cell_position[uid])  # saving status (cell id where the user is)
         except Exception as err:
             print('Errr in __savestatus: ' + str(err))
         self.say_hello(uid, chat_id)  # sending a reply (content of the message froma cell)
@@ -1464,10 +1523,10 @@ class SurveyBot(telebot.TeleBot):
     def say_hello(self, user_id, chat_id=-1):  # sending of a reply message
         print('sayhello')
 
-        if chat_id == -1:
+        if int(chat_id) == -1:
             chat_id = user_id
-        uid = user_id
-        _id = chat_id
+        uid = int(user_id)
+        _id = int(chat_id)
         self.send_chat_action(_id, 'typing')
 
         markup = []  # , one_time_keyboard=True, resize_keyboard=True)
@@ -1553,91 +1612,33 @@ class SurveyBot(telebot.TeleBot):
         _markup = types.InlineKeyboardMarkup(row_width=2)
         callback = 'unch;' + 'Назад' + ';' + dptr + ';' + dptr
 
-        discont = self.data_table.getFieldValue(chat_id, 'score', key_column='chat_id')
-        discont = int(discont)*100
+        #discont = self.data_table.getFieldValue(chat_id, 'score', key_column='chat_id')
+        #discont = int(discont)*100
 
-        if subscribe_id==1:
-            special_price = self.PRICE_1
-            special_price.amount = special_price.amount - discont*10
-            _markup.add(types.InlineKeyboardButton('Оплатить ' + str(int(special_price.amount/100)) + ' руб', pay=True))
-            _markup.add(types.InlineKeyboardButton('Назад', callback_data=callback))
-            self.send_invoice(chat_id,
-                          title="3 месяца обучения",
-                          description="Любой уровень на ваш выбор. Идеально подойдет тем, кому нужно говорить уже вчера, нет системных знаний и хочется почувствовать прогресс в обучении.",
+        payment_info = commands.PAY_OPTIONS.options[subscribe_id]
+
+        _markup.add(types.InlineKeyboardButton('Оплатить ' + str(int(payment_info['price'].amount / 100)) + ' руб', pay=True))
+        _markup.add(types.InlineKeyboardButton('Назад', callback_data=callback))
+
+        self.send_invoice(chat_id,
+                          title=payment_info['price'].label,
+                          description=payment_info['dscr'],
                           provider_token=self.PAYMENT_TOCKEN,
-                          currency="rub",
-                          is_flexible=False,
-                          prices=[special_price],
-                          start_parameter="three-month-subscription",
-                          invoice_payload="mounth3",
-                          photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
-                          photo_height=478,
-                          photo_width=512,
-                          photo_size=512,
-                          reply_markup=_markup)
-        elif subscribe_id == 2:
-            special_price = self.PRICE_2
-            special_price.amount = special_price.amount - discont*10
-            _markup.add(types.InlineKeyboardButton('Оплатить ' + str(int(special_price.amount/100)) + ' руб', pay=True))
-            _markup.add(types.InlineKeyboardButton('Назад', callback_data=callback))
-            self.send_invoice(chat_id,
-                          title="6 месяцев обучения",
-                          description="Любые два уровня на ваш выбор. Можно начать с нуля или продолжить обучение. Мощное погружение в язык со значительными результатами.",
-                          provider_token=self.PAYMENT_TOCKEN,
-                          currency="rub",
-                          is_flexible=False,
-                          prices=[special_price],
-                          start_parameter="six-month-subscription",
-                          invoice_payload="mounth6",
-                          photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
-                          photo_height=478,
-                          photo_width=512,
-                          photo_size=512,
-                          reply_markup=_markup)
-        elif subscribe_id == 3:
-            special_price = self.PRICE_3
-            special_price.amount = special_price.amount - discont*10
-            _markup.add(types.InlineKeyboardButton('Оплатить ' + str(int(special_price.amount/100)) + ' руб', pay=True))
-            _markup.add(types.InlineKeyboardButton('Назад', callback_data=callback))
-            self.send_invoice(chat_id,
-                          title="12 месев обучения",
-                          description="Полный курс обучения. С нуля и до уверенного владения итальянским. Через год можно покупать билеты и уезжать в Италию!",
-                          provider_token=self.PAYMENT_TOCKEN,
-                          currency="rub",
-                          is_flexible=False,
-                          prices=[special_price],
-                          start_parameter="one-year-subscription",
-                          invoice_payload="mounth12",
-                          photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
-                          photo_height=478,
-                          photo_width=512,
-                          photo_size=512,
-                          reply_markup=_markup)
-        elif subscribe_id == 4:
-            special_price = self.PRICE_4
-            special_price.amount = special_price.amount - discont*10
-            _markup.add(types.InlineKeyboardButton('Оплатить ' + str(int(special_price.amount/100)) + ' руб', pay=True))
-            _markup.add(types.InlineKeyboardButton('Назад', callback_data=callback))
-            self.send_invoice(chat_id,
-                          title="1 неделя обучения",
-                          description="Для скупых.",
-                          provider_token=self.PAYMENT_TOCKEN,
-                          currency="rub",
-                          is_flexible=False,
-                          prices=[special_price],
-                          start_parameter="one-week-subscription",
-                          invoice_payload="week",
-                          photo_url='https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
-                          photo_height=478,
-                          photo_width=512,
-                          photo_size=512,
+                          currency="rub",is_flexible=False,
+                          prices=[payment_info['price']],
+                          start_parameter=payment_info['start_parameter'],
+                          invoice_payload=payment_info['invoice_payload'],
+                          photo_url=payment_info['photo_url'],
+                          photo_height=payment_info['photo_height'],
+                          photo_width=payment_info['photo_width'],
+                          photo_size=payment_info['photo_size'],
                           reply_markup=_markup)
         pass
 
     def run(self):
         while True:
             try:
-                self.polling(none_stop=True, interval=0, skip_pending=True)
+                self.polling(none_stop=True, interval=1, skip_pending=True)
             except Exception as e:
                 print(str(e))
                 time.sleep(15)
@@ -1681,6 +1682,7 @@ class SurveyBot(telebot.TeleBot):
                 callback = 'saveuser;' + '' + ';' + user_status + ';' + addr
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
                 continue
+            '''
             if sp == '/pay1':
                 callback = 'pay;' + user_status + ';' + addr + ';1'
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
@@ -1697,6 +1699,11 @@ class SurveyBot(telebot.TeleBot):
                 callback = 'pay;' + user_status + ';' + addr + ';4'
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
                 pass
+            if sp == '/pay_online':
+                callback = 'pay;' + user_status + ';' + addr + ';4'
+                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
+                pass
+            '''
             if sp == '/edit':
                 if (self.user_cell_position[id] in self.data_dstn):
                     fieldname = self.data_dstn[self.user_cell_position[id]]
@@ -1750,8 +1757,8 @@ class SurveyBot(telebot.TeleBot):
 
     def __anonKeyFromContent(self, content, targetCell):
         btns = []
-        self.user_cell_position[id] = targetCell
-        user_status = targetCell
+        #user_status = self.user_cell_position[uid]
+        #self.user_cell_position[uid] = targetCell
         open_input_flad = 0
         for b in content:
             title, addr, sp = b
@@ -1759,7 +1766,7 @@ class SurveyBot(telebot.TeleBot):
             if sp == '/url':
                 btns.append(types.InlineKeyboardButton(title, url=addr))
             if sp is None or sp == '':
-                callback = 'chng;' + title + ';' + user_status + ';' + addr
+                callback = 'demo;' + title + ';' + targetCell + ';' + addr
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
         return btns
 
@@ -1796,15 +1803,16 @@ class SurveyBot(telebot.TeleBot):
         user_dict = {}
         user_tmp_dict = eval(str(user_dscr))
         for k in pupil_dict.keys():
-            if k in user_tmp_dict.keys():
-                user_dict[k] = user_tmp_dict[k]
+            user_dict[k] = pupil_dict[k]['defval']
 
-        user_dict['status']  = self.user_cell_position[user_dict['id']]
-        user_dict['chat_id'] = -1
-        user_dict['score']   = 100
-        user_dict['lesson_num'] = 0
-        user_dict['lessons_at_once'] = 0
-        self.user_chat_id[int(user_dict['id'])] = -1
+        for k in pupil_dict.keys():
+            if pupil_dict[k]['source'] in user_tmp_dict.keys():
+                user_dict[k] = user_tmp_dict[pupil_dict[k]['source']]
+
+        if user_dict['id'] in self.user_cell_position:
+            user_dict['status'] = self.user_cell_position[user_dict['id']]
+
+        self.user_chat_id[int(user_dict['id'])] = user_dict['chat_id']
         self.user_frozen [int(user_dict['id'])] = False
         return user_dict
 
