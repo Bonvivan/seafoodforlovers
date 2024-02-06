@@ -329,7 +329,7 @@ class SurveyBot(telebot.TeleBot):
 
             print('START from: ' + str(uid) + ' ' + str(message.from_user.username))
 
-            self.data_table.forceRead()
+            #self.data_table.forceRead()
 
             if 'chiefid' in self.bot_state and uid in self.bot_state['chiefid']:
                 self.send_message(cid, 'Вы учитель.')
@@ -338,11 +338,12 @@ class SurveyBot(telebot.TeleBot):
                     self.data_table.allUpdate()
                     self.send_message(cid, 'Синхронизация таблицы проведена!')
                 return None
-           # else:
-           #     self.user_chat_id[uid] = self.data_table.getFieldValue(uid, 'chat_id')
+            else:
+                if uid in self.user_chat_id:
+                    self.user_chat_id[uid] = self.data_table.getFieldValue(uid, 'chat_id')
 
             if uid in self.user_chat_id:
-                if self.user_chat_id[uid]!=-1 and self.user_chat_id[uid]!=cid:
+                if self.user_chat_id[uid]!=-1 and int(self.user_chat_id[uid])!=cid:
                     try:
                         link = self.create_chat_invite_link(int(self.user_chat_id[uid])).invite_link
                         self.send_message(cid, 'Перейдите в обучающий чат: ' + link)
@@ -374,6 +375,7 @@ class SurveyBot(telebot.TeleBot):
                 pupil_info = self.__create_user(self.survey_dict,
                                                 message.from_user)  # TODO change to save next state, not current
                 self.data_table.addPupil(pupil_info)
+
             else:
                 self.init_state(message.from_user.id)
                 self.user_cell_position = {**self.user_cell_position, **user[0]}
@@ -799,7 +801,7 @@ class SurveyBot(telebot.TeleBot):
             rand_m = randrange(0, 30)
             _tomorrow = _today + dt.timedelta(days=1) + dt.timedelta(hours=4) + dt.timedelta(minutes=rand_m)
             _tomorrow_test = datetime.utcnow() + dt.timedelta(minutes=1)
-            #_tomorrow_test = _tomorrow #TODO comment here for debug
+            _tomorrow_test = _tomorrow #TODO comment here for debug
             event_stamp = str(_tomorrow_test.isoformat()) + ';' + callback_query.data.split(';')[-1]
             self.data_table.setFieldValues(uid, [event_stamp, 0], ['delayed_event','lessons_at_once'])
             self.schedule[uid] = {'time': _tomorrow_test, 'cell': callback_query.data.split(';')[-1]}
@@ -1158,7 +1160,7 @@ class SurveyBot(telebot.TeleBot):
 
         self.data_table.setFieldValues(uid, [1, 1], ['curr_lesson', 'lessons_at_once'])
         level = self.data_table.getFieldValue(uid, 'level')
-        if level is None or level == '' or result_A1>1:
+        if level is None or level == '' or int(result_A1)>1:
             txt += 'Сейчас мы посмотрим ваш тест, и преподаватель предложит, с чего лучше начать!\n'
             txt += 'Результат теста: \n'
             txt += 'A1: ' + result_A1 + '/11\n'
@@ -1814,6 +1816,7 @@ class SurveyBot(telebot.TeleBot):
 
         self.user_chat_id[int(user_dict['id'])] = user_dict['chat_id']
         self.user_frozen [int(user_dict['id'])] = False
+        self.user_cell_position[int(user_dict['id'])] = user_dict['status']
         return user_dict
 
     def __invert_datasource_link(self, data_structure):
