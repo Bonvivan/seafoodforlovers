@@ -26,16 +26,18 @@ api_hash = 'aab0023515492e361473e53644c7413b'
 #----created by Andrey Svitenkov, Undresaid, 10.2023----#
 #-------------------------------------------------------#
 
-api_id = 27619730
-#api_id = 26733046
+api_id = 27619730 # roro
+#api_id = 29453964
 api_hash = 'cca9443429ddb73be66dd446ddfbb2ec'
-#api_hash = 'd701b98444e0f3ee88b06b086feb239c'
+#api_hash = '9b19a5222a26d36b8d0a38f4278dac44'
 
 #client = TelegramClient('MargoSuperSession', api_id, api_hash, system_version="4.16.30-vxCUSTOM", device_model="MyHomeServer", app_version="myPythonApp")
 client = TelegramClient('MySuperSession', api_id, api_hash, system_version="4.16.30-vxCUSTOM", device_model="MyHomeServer", app_version="myPythonApp")
 
 superbot_state_filepath = 'resources/superbot_state.json'
 superbot_state = {'tmp_chat_id':[]}
+
+self_id = 6604084268
 
 def decodeLinkEvent(event):
     event = str(event)
@@ -124,8 +126,9 @@ async def normal_handler(event):
         superbot_state = tp.correct_time(superbot_state)
 
         if event.user_added:
-            for uid in event.input_users:
-                msg = await client.kick_participant(event.chat_id, uid.user_id)
+            if self_id != event.user_id:
+                for uid in event.input_users:
+                   msg = await client.kick_participant(event.chat_id, event.user_id)
             return None
 
         for ch in superbot_state['tmp_chat_id']:
@@ -176,6 +179,7 @@ async def normal_handler(event):
 
 
 client.start()
+print(client.get_me().stringify())
 
 for dialog in client.iter_dialogs():
     print('Dialog entity: ' + str(dialog.entity.id))

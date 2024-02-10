@@ -131,8 +131,8 @@ class SurveyBot(telebot.TeleBot):
                 return None
             cid = message.chat.id
             cell = message.text.split(';')[-1]
-            self.user_cell_position[message.from_user.id] = cell
-            uid = self.__find_keys(self.user_chat_id, cid)
+            uid = self.__find_keys(self.user_chat_id, cid)[0]
+            self.user_cell_position[uid] = cell
             self.say_hello(uid, cid)
 
         @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('/paid', m.text) == len('/paid'))
@@ -182,10 +182,10 @@ class SurveyBot(telebot.TeleBot):
         @self.single_user_decorator
         def new_chat_event(message):
             print('new_chat_event')
-            if not(message.from_user.id in self.bot_state['chiefid']):
-                self.send_message(message.from_user.id,
-                                  "Только администратор бота может отдавать комманду на создание обучающего чата")
-                return None
+            #if not(message.from_user.id in self.bot_state['chiefid']):
+            #    self.send_message(message.from_user.id,
+            #                      "Только администратор бота может отдавать комманду на создание обучающего чата")
+            #    return None
 
             cmd = tp.parseCommand(message.text)
             uid = cmd['args'][0]
@@ -328,6 +328,7 @@ class SurveyBot(telebot.TeleBot):
             cid = message.chat.id
 
             print('START from: ' + str(uid) + ' ' + str(message.from_user.username))
+            print('Chat id: ' + str(cid))
 
             #self.data_table.forceRead()
 
@@ -766,6 +767,8 @@ class SurveyBot(telebot.TeleBot):
                 self.send_message(callback_query.from_user.id,
                                   "Не могу создать урок, учитель не активировал опцию, поробуйте позже")
             else:
+                chat_id = -1
+                tmp_pos = self.user_cell_position[callback_query.from_user.id]
                 if (self.__check_user_info(callback_query.from_user.id)):
                     self.create_lesson_chat(callback_query.from_user)
                     self.user_cell_position[callback_query.from_user.id] = callback_query.data.split(';')[-1]
@@ -777,10 +780,23 @@ class SurveyBot(telebot.TeleBot):
                 else:
                     self.send_message(callback_query.from_user.id,
                                       "Похоже вы не закончили опрос, наберите /start для продолжения")
-
+            link = ''
             try:
+                link = self.create_chat_invite_link(chat_id).invite_link
+            except:
+                link = ''
+            try:
+                #if link:
                 self.edit_message_reply_markup(callback_query.message.chat.id,
                                                message_id=callback_query.message.message_id, reply_markup='')
+                '''
+                else:
+                    self.send_message(callback_query.from_user.id,
+                                                   'Почему-то не удалось создать чать автоматически, ссылка на чать придет через несколько минут.')
+                    self.user_cell_position[callback_query.from_user.id] = tmp_pos
+                    self.data_table.setFieldValue(callback_query.from_user.id,
+                                                  self.user_cell_position[callback_query.from_user.id], 'status')
+                '''
             except:
                 pass
 
@@ -1062,6 +1078,7 @@ class SurveyBot(telebot.TeleBot):
         for uid in ids:
             if _id == -1 or uid == _id:
                 self.read_from_cell(uid)
+        pass
 
     def checkFast(self):
         for ch in self.tmp_msg_kill:
@@ -1509,7 +1526,7 @@ class SurveyBot(telebot.TeleBot):
         try:
             msg = self.data_table.getValueFromStr(self.user_cell_position[uid])[0][0]
         except Exception as err:
-            self.send_message(_id, 'Что-то сломалось(( Когда починят, придет уведомление')
+            #self.send_message(_id, 'Что-то сломалось(( Когда починят, придет уведомление')
             if uid in self.user_cell_position:
                 print('Error in table reading, desired range: ' + self.user_cell_position[uid])
             else:
