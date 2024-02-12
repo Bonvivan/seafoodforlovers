@@ -34,12 +34,14 @@ class SurveyBot(telebot.TeleBot):
     data_table = None
 
     user_cell_position = {}
-    user_chat_id = {}
-    user_command = {}
-    conditions   = {}
+    user_reminder = {}
+    user_chat_id  = {}
+    user_command  = {}
+    conditions    = {}
     teacher_command = {}
     tmp_msg_await   = {}
     tmp_msg_kill    = {}
+    tmp_addr        = {}
 
     bot_state = {}
     schedule = {}
@@ -84,7 +86,6 @@ class SurveyBot(telebot.TeleBot):
         self.logfile = open('resources\\LOGS\\LOG_' + '.txt', 'a', encoding="utf-8")
 
         pass
-
 
         # pre checkout  (must be answered in 10 seconds)
         @self.pre_checkout_query_handler(lambda query: True)
@@ -182,10 +183,10 @@ class SurveyBot(telebot.TeleBot):
         @self.single_user_decorator
         def new_chat_event(message):
             print('new_chat_event')
-            #if not(message.from_user.id in self.bot_state['chiefid']):
-            #    self.send_message(message.from_user.id,
-            #                      "Только администратор бота может отдавать комманду на создание обучающего чата")
-            #    return None
+            if not(message.from_user.id in self.bot_state['chiefid']):
+                self.send_message(message.from_user.id,
+                                  "Только администратор бота может отдавать комманду на создание обучающего чата")
+                return None
 
             cmd = tp.parseCommand(message.text)
             uid = cmd['args'][0]
@@ -228,9 +229,16 @@ class SurveyBot(telebot.TeleBot):
             try:
                 cmd = tp.parseCommand(message.text)
                 _id = int(cmd['args'][0])
-                print('Chat id')
-                self.send_message(_id, cmd['args'][1])
-                print('MSG to user')
+                addr = int(cmd['args'][-2])
+                flag = int(cmd['args'][-1])
+                if bool(flag):
+                    self.send_message(_id, cmd['args'][1])
+                    self.user_cell_position[_id] = addr
+                    self.data_table.setFieldValue(_id, addr, 'status')
+                    print('MSG to user: ' + str(_id) + '; msg: ' + str(message.text))
+                else:
+                    self.send_message(_id, "Пока не удалось создать чать. Чуть позже мы попробуем еще раз и пришлем ссылку.")
+
             except Exception as err:
                 print('Err in tunnel_msg: ' + str(err))
                 pass
@@ -361,6 +369,7 @@ class SurveyBot(telebot.TeleBot):
                         self.user_chat_id[int(uid)] = cid
                         self.start_lesson(int(uid), cid, message)
                     except:
+                        print('Error at /start for: ' + str(uid) + ' at chat: '+ str(cid)+'. User not a member of the chat.')
                         return None
                         pass
 
@@ -768,38 +777,18 @@ class SurveyBot(telebot.TeleBot):
                                   "Не могу создать урок, учитель не активировал опцию, поробуйте позже")
             else:
                 chat_id = -1
-                tmp_pos = self.user_cell_position[callback_query.from_user.id]
-                if (self.__check_user_info(callback_query.from_user.id)):
-                    self.create_lesson_chat(callback_query.from_user)
-                    self.user_cell_position[callback_query.from_user.id] = callback_query.data.split(';')[-1]
-                    self.data_table.setFieldValue(callback_query.from_user.id, self.user_cell_position[callback_query.from_user.id], 'status')
-                elif self.user_chat_id[callback_query.from_user.id] != -1:
+                addr = callback_query.data.split(';')[-1]
+                if (self.user_chat_id[callback_query.from_user.id] == -1):
+                    self.create_lesson_chat(addr, callback_query.from_user)#check if the chat was created
+                else:
                     chat_id = int(self.user_chat_id[callback_query.from_user.id])
-                    link = self.create_chat_invite_link(chat_id).invite_link
-                    self.send_message(callback_query.from_user.id, "Вы уже создали чат для урока: " + link)
-                else:
-                    self.send_message(callback_query.from_user.id,
-                                      "Похоже вы не закончили опрос, наберите /start для продолжения")
-            link = ''
-            try:
-                link = self.create_chat_invite_link(chat_id).invite_link
-            except:
-                link = ''
-            try:
-                #if link:
-                self.edit_message_reply_markup(callback_query.message.chat.id,
-                                               message_id=callback_query.message.message_id, reply_markup='')
-                '''
-                else:
-                    self.send_message(callback_query.from_user.id,
-                                                   'Почему-то не удалось создать чать автоматически, ссылка на чать придет через несколько минут.')
-                    self.user_cell_position[callback_query.from_user.id] = tmp_pos
-                    self.data_table.setFieldValue(callback_query.from_user.id,
-                                                  self.user_cell_position[callback_query.from_user.id], 'status')
-                '''
-            except:
-                pass
-
+                    try:
+                        link = self.create_chat_invite_link(chat_id).invite_link
+                        self.send_message(callback_query.from_user.id, "Вы уже создали чат для урока: " + link)
+                    except:
+                        self.user_chat_id[callback_query.from_user.id] = -1
+                        data_table.setFieldValue(callback_query.from_user.id, -1, 'chat_id')
+                        self.create_lesson_chat(addr, callback_query.from_user)
             pass
 
         @self.callback_query_handler(func=lambda c: c.data.startswith('tomorrow'))
@@ -1619,9 +1608,9 @@ class SurveyBot(telebot.TeleBot):
                 print('Err in sayhello: ' + str(err))
         pass
 
-    def create_lesson_chat(self, pupil_user):
+    def create_lesson_chat(self, addr, pupil_user):
         participants = [self.user.username, *self.bot_state['chiefname'], str(pupil_user.id)]
-        txt = commands.SCOMMANDS.create_a_chat + ';' + ';'.join(participants)
+        txt = commands.SCOMMANDS.create_a_chat + ';' + str(addr) + ';'.join(participants)
         self.send_message(self.bot_state['chiefid'], txt)
         pass
 
