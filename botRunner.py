@@ -229,7 +229,7 @@ class SurveyBot(telebot.TeleBot):
             try:
                 cmd = tp.parseCommand(message.text)
                 _id = int(cmd['args'][0])
-                addr = int(cmd['args'][-2])
+                addr = cmd['args'][-2]
                 flag = int(cmd['args'][-1])
                 if bool(flag):
                     self.send_message(_id, cmd['args'][1])

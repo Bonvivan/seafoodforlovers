@@ -150,11 +150,15 @@ async def normal_handler(event):
             admin_users = command['args'][1:-1]
             pupil       = command['args'][ -1]
             addr        = command['args'][ 0]
+            botuser     = command['args'][1]
             result = await client(functions.messages.CreateChatRequest(users=admin_users,title= 'Langusto italiano per ' + pupil))
             txt = 'Это чат для обучения итальянскому с Langusto! \n\n Если ничего не происходит наберите /start для продолжения.'
             await client.send_message(result.chats[0].id, txt)
             for bu in admin_users:
-                await client.edit_admin(result.chats[0], bu, is_admin=True, add_admins=False)
+                try:
+                    await client.edit_admin(result.chats[0], bu, is_admin=True, add_admins=False)
+                except:
+                    pass
 
             invite_link = await client(ExportChatInviteRequest(result.chats[0]))
 
@@ -165,20 +169,17 @@ async def normal_handler(event):
                     pupil) + ';Это приглашение в чат для обучения итальянскому. Переходи в группу и начни свой первый урок! \n\n<b>Этот чат можете удалить, он больше не пригодится.</b>\n\n' + invite_link
                 txt += ';' + addr + ';1'
                 await client.send_message(admin_users[0], txt, parse_mode='html')  # sending a link to a user.
-                superbot_state['tmp_chat_id'].append({'id': result.chats[0].id, 'pid': pupil, 'admin': admin_users,
+                superbot_state['tmp_chat_id'].append({'id': result.chats[0].id, 'pid': pupil,'botuser': botuser, 'admin': admin_users,
                                                       'time': result.chats[0].date.isoformat()})
                 state_f = open(superbot_state_filepath, 'w')
                 json.dump(superbot_state, state_f, indent=4)
                 state_f.close()
             else:
-                txt = '/tunnelmsg;' + str(pupil) + ';Не удалось создать чать, <b>ссылка придет чуть позже.</b>'
-                txt += ';' + addr + ';0'
-                await client.send_message(botuser, txt, parse_mode='html')  # sending a link to a user.
+                raise Exception(f"Empty link on chat, chat was not created")
 
         except Exception as err:
-            print('Error in creating chat for learning: ' + str(err))
             txt = '/tunnelmsg;' + str(pupil) + ';Не удалось создать чать, <b>ссылка придет чуть позже.</b>'
-            txt += ';failed'
+            txt += ';' + addr + ';0'
             await client.send_message(botuser, txt, parse_mode='html')  # sending a link to a user.
             await client(functions.messages.DeleteChatRequest(chat_id=result.chats[0].id))
 
