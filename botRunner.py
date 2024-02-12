@@ -229,7 +229,7 @@ class SurveyBot(telebot.TeleBot):
             try:
                 cmd = tp.parseCommand(message.text)
                 _id = int(cmd['args'][0])
-                addr = int(cmd['args'][-2])
+                addr = cmd['args'][-2]
                 flag = int(cmd['args'][-1])
                 if bool(flag):
                     self.send_message(_id, cmd['args'][1])
@@ -352,7 +352,7 @@ class SurveyBot(telebot.TeleBot):
                     self.user_chat_id[uid] = self.data_table.getFieldValue(uid, 'chat_id')
 
             if uid in self.user_chat_id:
-                if self.user_chat_id[uid]!=-1 and int(self.user_chat_id[uid])!=cid:
+                if int(self.user_chat_id[uid])!=-1 and int(self.user_chat_id[uid])!=cid:
                     try:
                         link = self.create_chat_invite_link(int(self.user_chat_id[uid])).invite_link
                         self.send_message(cid, 'Перейдите в обучающий чат: ' + link)
@@ -361,7 +361,7 @@ class SurveyBot(telebot.TeleBot):
                         self.user_chat_id[uid] = -1
                         self.data_table.setFieldValue(uid, -1, 'chat_id')
                         pass
-                elif uid!=cid and self.user_chat_id[uid]==-1: #TODO: make by /savechannel route, not by lesson
+                elif uid!=cid and int(self.user_chat_id[uid])==-1: #TODO: make by /savechannel route, not by lesson
                     try:
                         self.get_chat_member(cid, uid)
                         now = datetime.utcnow().date()
@@ -1610,7 +1610,7 @@ class SurveyBot(telebot.TeleBot):
 
     def create_lesson_chat(self, addr, pupil_user):
         participants = [self.user.username, *self.bot_state['chiefname'], str(pupil_user.id)]
-        txt = commands.SCOMMANDS.create_a_chat + ';' + str(addr) + ';'.join(participants)
+        txt = commands.SCOMMANDS.create_a_chat + ';' + str(addr) +';' +';'.join(participants)
         self.send_message(self.bot_state['chiefid'], txt)
         pass
 
