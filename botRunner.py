@@ -810,7 +810,7 @@ class SurveyBot(telebot.TeleBot):
             rand_m = randrange(0, 30)
             _tomorrow = _today + dt.timedelta(days=1) + dt.timedelta(hours=4) + dt.timedelta(minutes=rand_m)
             _tomorrow_test = datetime.utcnow() + dt.timedelta(minutes=1)
-            #_tomorrow_test = _tomorrow #TODO comment here for debug
+            _tomorrow_test = _tomorrow #TODO comment here for debug
             event_stamp = str(_tomorrow_test.isoformat()) + ';' + callback_query.data.split(';')[-1]
             self.data_table.setFieldValues(uid, [event_stamp, 0], ['delayed_event','lessons_at_once'])
             self.schedule[uid] = {'time': _tomorrow_test, 'cell': callback_query.data.split(';')[-1]}
@@ -1415,7 +1415,7 @@ class SurveyBot(telebot.TeleBot):
                 try:
                     msg = self.data_table.getValueFromStr(addr[0])[0][0]
                     content = tp.parseMessage(msg)
-                    msgs = content['content'][0][0]
+                    msgs = content[0]['content'][0]
                     markup = types.InlineKeyboardMarkup(row_width=2)
                     markup.add(types.InlineKeyboardButton('***', switch_inline_query_current_chat=msgs))
                     result = self.send_message(chat_id, '***', reply_markup=markup)

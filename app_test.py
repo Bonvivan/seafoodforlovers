@@ -166,7 +166,7 @@ async def normal_handler(event):
             if z.groups()[0]:
                 invite_link = z.groups()[0]
                 txt = '/tunnelmsg;' + str(
-                    pupil) + ';Это приглашение в чат для обучения итальянскому. Переходи в группу и начни свой первый урок! \n\n<b>Этот чат можете удалить, он больше не пригодится.</b>\n\n' + invite_link
+                    pupil) + ';Это приглашение в чат для обучения итальянскому. Переходи в группу и начни свой первый урок!' + invite_link
                 txt += ';' + addr + ';1'
                 await client.send_message(admin_users[0], txt, parse_mode='html')  # sending a link to a user.
                 superbot_state['tmp_chat_id'].append({'id': result.chats[0].id, 'pid': pupil,'botuser': botuser, 'admin': admin_users,
@@ -175,9 +175,9 @@ async def normal_handler(event):
                 json.dump(superbot_state, state_f, indent=4)
                 state_f.close()
 
-                for au in admin_users[1:]:
+                for au in admin_users:
                     try:
-                        client.send_message(au, 'Создан новый обучающий чат: \n' + invite_link)
+                        await client.send_message(au, 'Создан новый обучающий чат: \n' + invite_link)
                     except:
                         pass
             else:
