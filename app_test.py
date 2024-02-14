@@ -148,9 +148,9 @@ async def normal_handler(event):
     if command['request']==cm.SCOMMANDS.create_a_chat:
         try:
             admin_users = command['args'][1:-1]
-            pupil       = command['args'][ -1]
+            pupil       = command['args'][-1]
             addr        = command['args'][ 0]
-            botuser     = command['args'][1]
+            botuser     = command['args'][ 1]
             result = await client(functions.messages.CreateChatRequest(users=admin_users,title= 'Langusto italiano per ' + pupil))
             txt = 'Это чат для обучения итальянскому с Langusto! \n\n Если ничего не происходит наберите /start для продолжения.'
             await client.send_message(result.chats[0].id, txt)
@@ -174,6 +174,12 @@ async def normal_handler(event):
                 state_f = open(superbot_state_filepath, 'w')
                 json.dump(superbot_state, state_f, indent=4)
                 state_f.close()
+
+                for au in admin_users[1:]:
+                    try:
+                        client.send_message(au, 'Создан новый обучающий чат: \n' + invite_link)
+                    except:
+                        pass
             else:
                 raise Exception(f"Empty link on chat, chat was not created")
 

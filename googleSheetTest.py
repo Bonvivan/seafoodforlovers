@@ -34,6 +34,10 @@ class GoogleTableReader():
     pupilRowIndex = {}
 
     updateQueue      = {}
+    logQueue         = [] # TODO: make it a separate class
+    logHeader        = {}
+
+
 
     def __init__(self, spreadsheetId):
         self.alphabet = list(map(chr, range(ord('A'), ord('Z')+1)))
@@ -162,6 +166,19 @@ class GoogleTableReader():
 
         return header
 
+    def __initLog(self, sheet = 'heaplog'):
+
+        content = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
+                                                           range=sheet + '!' + 'A1:Z').execute()['values']
+        col_names = content[0]
+        next_row = len(content)
+
+        log_header = {}
+        for i in range(len(col_names)):
+            if col_names[i]:
+                log_header[col_names[i]] = i
+        return log_header, next_row
+
     def giveAccess(self, email, role='writer'):
         access = self.service.permissions().create(
             fileId=self.spreadsheetId,
@@ -170,6 +187,21 @@ class GoogleTableReader():
             fields='id'
         ).execute()
 
+    def addLogEntity(self, entities):
+        for _id in entities:
+            entity = entities[_id]
+            uid = _id
+            record = {}
+            for h in entity.keys():
+                if h in self.logHeader['header']:
+                    record[h] = entity[h]
+
+            self.logQueue.append({'id':uid, **record})
+            for h in self.logHeader['header']:
+                if not(h in self.logQueue[-1]):
+                    if uid in self.pupilsData:
+                        self.logQueue[-1][h] = self.pupilsData[uid][self.fieldsIndexer.get(h, -1)]
+            pass
     @my_shiny_new_decorator
     def initPupilsDatabase(self):
         self.pupilsData, self.fieldsIndexer = self.getPupilsDatabase()
@@ -203,6 +235,8 @@ class GoogleTableReader():
 
         self.read_counter += 1
         header = self.__readHeader()
+        self.logHeader['header'], self.logHeader['next_row']= self.__initLog(sheet='heaplog')
+        self.logHeader['sheet'] = 'heaplog'
 
         readings = [h + str(len(header)) + ':' + h.split('!')[1] + '999' for h in header[-1][:-1]]
 
@@ -300,7 +334,7 @@ class GoogleTableReader():
         else:
             for p in self.pupilsData:
                 if str(self.pupilsData[p][self.fieldsIndexer.get(key_column, -1)])==str(id):
-                    key_id = self.pupilsData[p][self.fieldsIndexer.get('id', -1)]
+                    key_id = int(self.pupilsData[p][self.fieldsIndexer.get('id', -1)])
                     for h, v in zip(fieldnames, values):
                         self.pupilsData[key_id][h] = str(v)
                     self.pupilsData[key_id][-1] = None
@@ -323,8 +357,8 @@ class GoogleTableReader():
                 self.pupilsData[id][-1] = None
         else:
             for p in self.pupilsData:
-                if self.pupilsData[p][self.fieldsIndexer.get(key_column, -1)] == id:
-                    key_id = p[self.fieldsIndexer.get('id', -1)]
+                if str(self.pupilsData[p][self.fieldsIndexer.get(key_column, -1)]) == str(id):
+                    key_id = int(self.pupilsData[p][self.fieldsIndexer.get('id', -1)])
                     self.pupilsData[key_id][self.fieldsIndexer.get(fieldname, -1)] = value
                     self.pupilsData[key_id][-1] = None
                     break
@@ -388,6 +422,7 @@ class GoogleTableReader():
             return [[None]]
         sheet_values = results['values']
         return sheet_values
+
     @my_shiny_new_decorator
     def getValue(self, sheetName, cellRange):
         print('getValue')
@@ -425,11 +460,9 @@ class GoogleTableReader():
 
         return result
 
-
     @my_shiny_new_decorator
     def getPupilStruct(self, sheetName='pupils', rng='A1:BZ4'):
         return self.__getPupilStruct(sheetName=sheetName, rng=rng)
-
 
     def __getPupilStruct(self, sheetName='pupils', rng='A1:BZ4'):
         print('getPupilStruct')
@@ -489,11 +522,11 @@ class GoogleTableReader():
     @my_shiny_new_decorator
     def forceWrite(self):
         return self.__updateRemoteSpreadsheet()
+
     def __updateRemoteSpreadsheet(self):
         self.header = self.__readHeader()
         for pupil in self.updateQueue:
             self.updateQueue[pupil] = list(set(self.updateQueue[pupil]))
-
 
         body = {'valueInputOption': 'RAW', 'data': []}
         for pupil in self.updateQueue:
@@ -511,5 +544,23 @@ class GoogleTableReader():
                 return False
                 pass
         self.updateQueue = {}
+
+        body = {'valueInputOption': 'RAW', 'data': []}
+        for ent in self.logQueue:
+            self.logHeader['next_row'] += 1
+            for h in ent:
+                addr = self.__addRowToAddres(self.logHeader['sheet'] +'!' + self.alphabet[self.logHeader['header'][h]], self.logHeader['next_row'])
+                value = ent[h]
+                body['data'].append({'range': addr, 'values': [[value]]})
+
+        if len(self.logQueue)>0:
+            try:
+                resp = self.service.spreadsheets().values().batchUpdate(spreadsheetId=self.spreadsheetId, body=body).execute()
+                self.logQueue = []
+            except Exception as err:
+                print('ERROR_LOG, ' + 'trying to write log: ' + str(err))
+                return False
+                pass
+
         return resp
 

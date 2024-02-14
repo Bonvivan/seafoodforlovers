@@ -83,7 +83,7 @@ class GCOMMANDS:
 
 class PAY_OPTIONS:
 
-    PRICE_1 = types.LabeledPrice(label="3 месяца обучения", amount=49000 * 100)  # в копейках (руб)
+    PRICE_1 = types.LabeledPrice(label="3 месяца обучения", amount=54990 * 100)  # в копейках (руб)
     PRICE_2 = types.LabeledPrice(label="1 неделя обучения", amount=3900 * 100)  # в копейках (руб)
     PRICE_3 = types.LabeledPrice(label="2 урока", amount=2000 * 100)  # в копейках (руб)
 
