@@ -84,11 +84,11 @@ class GCOMMANDS:
 class PAY_OPTIONS:
 
     PRICE_1 = types.LabeledPrice(label="3 месяца обучения", amount=54990 * 100)  # в копейках (руб)
-    PRICE_2 = types.LabeledPrice(label="1 неделя обучения", amount=3900 * 100)  # в копейках (руб)
+    PRICE_2 = types.LabeledPrice(label="1 неделя обучения", amount=5900 * 100)  # в копейках (руб)
     PRICE_3 = types.LabeledPrice(label="2 урока", amount=2000 * 100)  # в копейках (руб)
 
     options={'pr_1':{
-              'active': False,
+              'active': True,
               'price': PRICE_1,
               'button': '3 месяца за ' + str(PRICE_1.amount/100) + ' рублей',
               'dscr': 'Идеально подойдет тем, кому нужно говорить уже вчера, нет системных знаний и хочется почувствовать прогресс в обучении.',
@@ -99,13 +99,13 @@ class PAY_OPTIONS:
               'pr_2':{'price': PRICE_2,
                       'button': '1 неделя ' + str(PRICE_2.amount / 100) + ' рублей',
               'active': True,
-              'dscr': 'Для скупых. Включает 5 уроков.',
+              'dscr': 'Включает 5 уроков.',
               'invoice_payload': 'week1', 'start_parameter': 'one-week-subscription',
               'photo_url': 'https://dl.dropboxusercontent.com/scl/fi/g9zlqj85vit74ymrjpsg0/logo_langusto.png?rlkey=2qd8i57bmz6tt20x0c2fzyeml&dl=0',
               'photo_height': 239, 'photo_width': 256, 'photo_size': 256, 'period':14, 'num':5
               },
               'pr_3':{'price': PRICE_3,
-              'active': True,
+              'active': False,
               'button': '2 урока за ' + str(PRICE_3.amount / 100) + ' рублей',
               'dscr': 'Для очень скупых.',
               'invoice_payload': '2-lessons', 'start_parameter': 'two-lessons-subscription',

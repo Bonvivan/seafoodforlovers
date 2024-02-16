@@ -99,6 +99,7 @@ class SurveyBot(telebot.TeleBot):
         @self.message_handler(content_types=['successful_payment'])
         def successful_payment(message: types.Message):
             print("SUCCESSFUL PAYMENT:")
+            self.__add_to_log(message.from_user.id, {'command': 'successful_payment', 'exit': 'Failed'})
             payment_info = message.successful_payment
             cid = self.user_chat_id[message.from_user.id]
             try:
@@ -106,6 +107,7 @@ class SurveyBot(telebot.TeleBot):
                 self.send_message(self.bot_state['chiefid'], '!!!ОПЛАТА В ЧАТЕ, ГУЛЯЙ РВАНИНА!!!: \n' + link)
             except:
                 self.send_message(self.bot_state['chiefid'], '!!!' + str(message.from_user.username) + ' ОПЛАТИЛ КУРС, ПРОВЕРЬ ТАБЛИЦУ!!!: \n')
+
             uid = message.from_user.id
             for opt in commands.PAY_OPTIONS.options:
                 if message.successful_payment.invoice_payload == opt['invoice_payload']:
@@ -113,7 +115,6 @@ class SurveyBot(telebot.TeleBot):
                                                          str(datetime.utcnow().isoformat()), opt['period'], opt['num'], 0],
                                                         ['score','payment_info', 'payment_date', 'period', 'lesson_num', 'curr_lesson'])
 
-            #self.user_cell_position[uid] = 'teacher!A6'
             self.__savestatus(uid,self.user_cell_position[uid])
             self.say_hello(uid, cid)
             print(payment_info)
@@ -136,8 +137,11 @@ class SurveyBot(telebot.TeleBot):
             cid = message.chat.id
             cell = message.text.split(';')[-1]
             uid = self.__find_keys(self.user_chat_id, cid)[0]
+            self.__add_to_log(uid, {'command': '/moveto', 'dest': cell, 'status': self.user_cell_position[uid],
+                                    'teacher': message.from_user.id})
             self.user_cell_position[uid] = cell
             self.say_hello(uid, cid)
+            self.__savestatus(uid, self.user_cell_position[uid], more_fields=['delayed_event'], more_val=[''])
 
         @self.message_handler(func=lambda m: tp.MSG_TYPE.compare('/paid', m.text) == len('/paid'))
         @self.single_user_decorator
@@ -178,7 +182,7 @@ class SurveyBot(telebot.TeleBot):
             except Exception as err:
                 print('ERROR: edit_message_text(Оплата произведена...' + str(err))
                 pass
-
+            self.__add_to_log(uid, {'command': '/paid', 'exit': 'Success','teacher':message.from_user.id})
             self.say_hello(uid, cid)
 
         @self.message_handler(
@@ -195,6 +199,8 @@ class SurveyBot(telebot.TeleBot):
             uid = cmd['args'][0]
             cid = cmd['args'][1]
             ch_date = cmd['args'][2]
+
+            self.__add_to_log(uid, {'command':'/savechannel', 'exit':'Success'})
             try:
                 uid = int(uid)
                 cid = int(cid)
@@ -207,10 +213,12 @@ class SurveyBot(telebot.TeleBot):
             if not(int(uid) in self.user_chat_id.keys()):
                 self.kick_chat_member(chat_id=cid, user_id=uid, until_date=None)
                 print('Попытка добавить неизвестного пользователя + ' + str(uid) + ' to ' + str(cid))
+                self.__add_to_log(uid, {'command': '/savechannel', 'exit': 'Failed', 'error': 'UnknownUser'})
                 return None
             if cid in self.user_chat_id.values():
                 self.kick_chat_member(chat_id=cid, user_id=uid, until_date=None)
                 print('Попытка добавить лишнего пользователя + ' + str(uid) + ' to ' + str(cid))
+                self.__add_to_log(uid, {'command': '/savechannel', 'exit': 'Failed', 'error': 'ExtraUser'})
                 return None
 
             try:
@@ -220,8 +228,9 @@ class SurveyBot(telebot.TeleBot):
             except Exception as err:
                 self.data_table.critical_flag = False
                 self.send_message(cid,
-                                  "Что-то пошло не так. Наберите /call чтоб сообщить об этом преподавателю")
+                                  "Что-то пошло не так. Наберите /nonfunziona чтоб сообщить об этом преподавателю")
                 print('new_chat_event: ' + str(err))
+                self.__add_to_log(uid, {'command': '/savechannel', 'exit': 'Failed', 'error':str(err)})
             pass
 
         @self.message_handler(
@@ -379,6 +388,7 @@ class SurveyBot(telebot.TeleBot):
             self.data_table.allUpdate()
             user = self.__check_user(message.from_user.id)
             if (user == None):
+                self.__add_to_log(uid, {'command': 'newuser', 'exit': 'Failed'})
                 uid = message.from_user.id
                 self.user_cell_position.pop(uid,None)
                 self.user_chat_id.pop(uid, None)
@@ -388,8 +398,10 @@ class SurveyBot(telebot.TeleBot):
                 pupil_info = self.__create_user(self.survey_dict,
                                                 message.from_user)  # TODO change to save next state, not current
                 self.data_table.addPupil(pupil_info)
+                self.__add_to_log(uid, {'exit': 'Success'})
 
             else:
+                self.__add_to_log(uid, {'command': 'start', 'exit': 'Failed'})
                 self.init_state(message.from_user.id)
                 self.user_cell_position = {**self.user_cell_position, **user[0]}
                 self.user_chat_id = {**self.user_chat_id, **user[1]}
@@ -511,6 +523,8 @@ class SurveyBot(telebot.TeleBot):
             uid = message.from_user.id
             cid = message.chat.id
 
+            self.__add_to_log(uid, {'command': 'scongelare', 'exit': 'Failed'})
+
             if not(uid in self.bot_state['chiefid']):
                 if cid != self.user_chat_id[uid]:
                     return None
@@ -522,8 +536,10 @@ class SurveyBot(telebot.TeleBot):
                 cell_txt = tp.encodeFreeze(schedule, datetime.utcnow().date())
                 self.data_table.setFieldValue(cid, cell_txt, 'freeze', key_column='chat_id')
                 self.send_message(cid, 'Курс раморожен\n')
+                self.__add_to_log(uid, {'command': 'scongelare', 'exit': 'Success'})
             else:
                 self.send_message(cid, 'Курс не заморожен\n')
+                self.__add_to_log(uid, {'error': 'NotFrosen'})
             pass
 
         @self.message_handler(commands=['congelare'])
@@ -544,6 +560,7 @@ class SurveyBot(telebot.TeleBot):
                 txt = tp.encodeFreeze(schedule, datetime.utcnow().date())
                 self.data_table.setFieldValue(cid, txt, 'freeze', key_column='chat_id')
                 self.send_message(cid, 'Курс заморожен\n')
+                self.__add_to_log(self.__find_keys(self.user_chat_id, cid)[0], {'command': 'congelare', 'teacher':uid ,'exit': 'Success'})
                 schedule, txt = tp.parseFreeze(txt)
                 self.send_message(cid, txt)
             else:
@@ -776,12 +793,17 @@ class SurveyBot(telebot.TeleBot):
             print('lesson_command')
             self.send_chat_action(message.from_user.id, 'typing')
             self.answer_callback_query(callback_query.id)
+
             if not ('chiefid' in self.bot_state) or len(self.bot_state['chiefid']) == 0:
                 self.send_message(callback_query.from_user.id,
                                   "Не могу создать урок, учитель не активировал опцию, поробуйте позже")
             else:
                 chat_id = -1
                 addr = callback_query.data.split(';')[-1]
+                self.__add_to_log(callback_query.from_user.id,
+                                  {#'status':self.user_cell_position[callback_query.from_user.id],
+                                        'command': 'to_lsn',
+                                        'dest':addr, 'exit':'Success'})
                 if (self.user_chat_id[callback_query.from_user.id] == -1):
                     self.create_lesson_chat(addr, callback_query.from_user)#check if the chat was created
                 else:
@@ -789,6 +811,7 @@ class SurveyBot(telebot.TeleBot):
                     try:
                         link = self.create_chat_invite_link(chat_id).invite_link
                         self.send_message(callback_query.from_user.id, "Вы уже создали чат для урока: " + link)
+                        self.__add_to_log(callback_query.from_user.id,{'exit': 'Failed', 'error':'Chat already created'})
                     except:
                         self.user_chat_id[callback_query.from_user.id] = -1
                         data_table.setFieldValue(callback_query.from_user.id, -1, 'chat_id')
@@ -967,13 +990,14 @@ class SurveyBot(telebot.TeleBot):
                 return None
             else:
                 self.now_processing_id = uid
+
+            cid = uid
+            command = ''
             try:
                 try:
                     self.logfile.write(str(uid) + ': ' + '; does: ' + str(args[0].data) + '.')
                 except:
                     self.logfile.write(str(uid) + ': ' + '; does: ' + str(args[0].text) + '.')
-                cid = uid
-                command = ''
                 if type(args[0]) == telebot.types.CallbackQuery:
                     cid = args[0].message.chat.id
                     command = args[0].data.split(';')[0]
@@ -982,28 +1006,30 @@ class SurveyBot(telebot.TeleBot):
                     cid = args[0].chat.id
                     command = args[0].text.split(';')[0]
 
-                self.log_list[uid] = {'id': uid, 'command': command, 'role': 'pupil', 'last_activity_date': str(datetime.now(timezone.utc).isoformat()), 'in_group': cid < 0, 'result': 'Failed'}
-                if uid in self.bot_state['chiefid']:
-                    self.log_list[uid]['role'] = 'teacher'
-                    self.log_list[uid]['username'] = args[0].from_user.username
+                #if uid in self.bot_state['chiefid']:
+                #    self.log_list[uid]['role'] = 'teacher'
+                #    self.log_list[uid]['username'] = args[0].from_user.username
 
                 res = function_to_decorate(*args)
-                self.log_list[uid]['result'] = 'Success'
+                #self.log_list[uid]['result'] = 'Success'
 
             except Exception as err:
                 print(err)
-                self.logfile.write('Error! ' + str(err) + '\n')
-                self.log_list[uid]['error'] = str(err)
+                if cid in self.user_chat_id:
+                    self.__add_to_log(self.__find_keys(self.user_chat_id, cid), {'exit':'Failed', 'error':err, 'command':command})
+                else:
+                    self.__add_to_log(uid, {'exit': 'Failed', 'error': err, 'command': command})
+                #self.logfile.write('Error! ' + str(err) + '\n')
+                #self.log_list[uid]['error'] = str(err)
                 res = None
 
+            self.logfile.flush()
+            self.now_processing_id = -1
             try:
                 self.data_table.addLogEntity(self.log_list)
             except:
                 pass
-
             self.log_list = {}
-            self.logfile.flush()
-            self.now_processing_id = -1
             return res
         return wrapper
 
@@ -1114,7 +1140,7 @@ class SurveyBot(telebot.TeleBot):
 
                 self.log_list[uid] = {'id': uid, 'role': 'pupil', 'dptr':self.user_cell_position[uid], 'dest':evnt['cell'],
                                       'status':self.user_cell_position[uid], 'last_activity_date': str(datetime.now(timezone.utc).isoformat()),
-                                      'in_group': chat_id < 0, 'result': 'Failed'}
+                                      'in_group': chat_id < 0, 'exit': 'Failed'}
 
                 self.user_cell_position[uid] = evnt['cell']
                 self.say_hello(uid, chat_id)
@@ -1135,7 +1161,7 @@ class SurveyBot(telebot.TeleBot):
 
     def start_lesson(self, uid, chat_id, message):
         print('start_lesson')
-
+        self.__add_to_log(uid, {'command':'/savechannel', 'exit':'Success'})
         self.data_table.allUpdate()
 
         record   = self.data_table.getPupilStatus(uid)
@@ -1243,6 +1269,7 @@ class SurveyBot(telebot.TeleBot):
             except Exception as err:
                 print(str(uid) + ': Error in start_lesson: ' + str(err))
                 self.user_cell_position[uid] = addr
+                self.__add_to_log(uid, {'exit': 'Failed', 'error':err})
                 self.__savestatus(uid, self.user_cell_position[uid])
             pass
         pass
@@ -1294,6 +1321,8 @@ class SurveyBot(telebot.TeleBot):
         '''
 
         for k_opt in commands.PAY_OPTIONS.options.keys():
+            if not (commands.PAY_OPTIONS.options[k_opt]['active']):
+                continue
             callback = 'pay;' + user_status + ';' + user_status + ';' + k_opt
             markup.add(types.InlineKeyboardButton(commands.PAY_OPTIONS.options[k_opt]['button'], callback_data=callback))
 
@@ -1344,7 +1373,9 @@ class SurveyBot(telebot.TeleBot):
         if not(cmd_is_found) and message.text[0] != '/':
             return True
 
+        self.__add_to_log(uid, {'command': cmd})
         if not(cmd_is_found):
+            self.__add_to_log(uid, {'error': 'WrongCommand', 'exit': 'Failed'})
             return False
 
         if cmd == 'le_risposte':
@@ -1365,6 +1396,12 @@ class SurveyBot(telebot.TeleBot):
                 addr[0] = None
                 return True
 
+            payment_info = self.data_table.getFieldValue(uid, 'payment_info')
+            if payment_info == '' or payment_info is None:
+                self.send_message(chat_id, '🤖 Опция недоступна на ознакомительном периоде.')
+                addr[0] = None
+                return True
+
             stat = self.data_table.getPupilStatus(uid)
             extra_lesson_num = int(stat['lessons_at_once'])
             curr_lsn         = int(stat[    'curr_lesson'])
@@ -1373,14 +1410,17 @@ class SurveyBot(telebot.TeleBot):
                 self.data_table.setFieldValues(uid, [curr_lsn+1, extra_lesson_num, ''], ['curr_lesson','lessons_at_once','delayed_event'])
             else:
                 self.send_message(chat_id, 'Нельзы получить больше уроков вне очереди.')
+                self.__add_to_log(uid, {'error': 'TooManyProssima'})
                 addr[0] = None
                 return True
             self.send_message(chat_id, 'Получено уроков <b>вне очереди: ' + str(extra_lesson_num) + '</b>', parse_mode='html')
+        self.__add_to_log(uid, {'exit': 'Succes'})
         return True
 
     def teacher_command_processor(self, message, addr):
         tid = message.from_user.id
         chat_id = message.chat.id
+        uid = self.__find_keys(self.user_chat_id, chat_id)[0]
         cmd = self.__extract_command(message.text)
 
         if cmd=='' and message.text[0]!='/':
@@ -1392,6 +1432,9 @@ class SurveyBot(telebot.TeleBot):
                     addr[0] = tc[1]
         else:
             return False
+
+        self.__add_to_log(uid, {'command': cmd})
+        self.__add_to_log(uid, {'teacher': tid})
 
         try:
             if cmd == 'controllato':
@@ -1413,6 +1456,7 @@ class SurveyBot(telebot.TeleBot):
 
             if cmd == 'le_risposte':
                 try:
+                    self.log_list.pop(uid,None)
                     msg = self.data_table.getValueFromStr(addr[0])[0][0]
                     content = tp.parseMessage(msg)
                     msgs = content[0]['content'][0]
@@ -1428,11 +1472,31 @@ class SurveyBot(telebot.TeleBot):
                     addr[0] = None
                     return True
 
-                pass
+            if cmd == 'prossima':
+                if not (self.check_paymant(uid)):
+                    addr[0] = None
+                    return True
+                stat = self.data_table.getPupilStatus(uid)
+                extra_lesson_num = int(stat['lessons_at_once'])
+                curr_lsn = int(stat['curr_lesson'])
+                if extra_lesson_num < 3:
+                    extra_lesson_num += 1
+                    self.data_table.setFieldValues(uid, [curr_lsn + 1, extra_lesson_num, ''],
+                                                   ['curr_lesson', 'lessons_at_once', 'delayed_event'])
+                else:
+                    self.send_message(chat_id, 'Нельзы получить больше уроков вне очереди.')
+                    self.__add_to_log(uid, {'error': 'TooManyProssima'})
+                    addr[0] = None
+                    return True
+                self.send_message(chat_id, 'Получено уроков <b>вне очереди: ' + str(extra_lesson_num) + '</b>',
+                                  parse_mode='html')
+            self.__add_to_log(uid, {'exit': 'Success'})
+            return True
+
         except Exception as e:
             print('Error in teacher_command_processor: ' + str(e))
+            self.__add_to_log(uid, {'error': str(e), 'exit': 'Success'})
             return False
-
         return True
 
     def wrong_command_report(self, msg):
@@ -1445,6 +1509,13 @@ class SurveyBot(telebot.TeleBot):
         chat_id = message.chat.id
         cmd = ''
 
+        role = None
+        if uid in self.user_cell_position:
+            role = 'pupil'
+        elif uid in self.bot_state['chiefid']:
+            role = 'teacher'
+
+
         if chat_id in self.tmp_msg_await:
             if self.tmp_msg_await[chat_id] == uid:
                 self.delete_message(chat_id=chat_id, message_id=message.message_id)
@@ -1452,13 +1523,13 @@ class SurveyBot(telebot.TeleBot):
 
         addr = [None]
 
-        if uid in self.user_command and len(self.user_command[uid])>0:
+        if uid in self.user_command and len(self.user_command[uid])>0 and role == 'pupil':
             if not (self.user_command_processor(message, addr)):  # reading of next cell address here
                 self.wrong_command_report(message)
                 self.read_from_cell(uid)
                 return None
 
-        if chat_id in self.teacher_command and len(self.teacher_command[chat_id])>0:
+        if chat_id in self.teacher_command and len(self.teacher_command[chat_id])>0 and role == 'teacher':
             if not (self.teacher_command_processor(message, addr)):  # reading of next cell address here
                 self.wrong_command_report(message)
                 self.read_from_cell(uid)
@@ -1499,19 +1570,21 @@ class SurveyBot(telebot.TeleBot):
             else:
                 uid = pupil_id[0]
 
-        self.log_list[uid] = {**self.log_list.get(uid, {}), 'status': self.user_cell_position[uid], 'role': 'pupil',
-                              'last_activity_date': str(datetime.now(timezone.utc).isoformat()), 'dptr':dptr, 'dest': addr,
-                              'result': 'Failed'}
+        self.__add_to_log(uid, {
+                                     'status': self.user_cell_position[uid],
+                                     'dptr':dptr,
+                                     'dest': addr,
+                                     'last_activity_date': str(datetime.now(timezone.utc).isoformat()),
+                                     'exit': 'Failed'
+                                    })
 
         self.send_chat_action(chat_id, 'typing')
         cmd = ''
 
-        self.log_list[uid]['status'] = self.user_cell_position[uid]
-        self.log_list[uid]['dptr'] = dptr
         if not (uid in self.user_cell_position):
             self.user_cell_position[uid] = dptr
         if (not (self.user_cell_position[uid] == dptr) and not(demo)):
-            self.log_list[uid]['result'] = 'WrongLink'
+            self.__add_to_log(uid, {'exit': 'WrongLink'})
             return None
 
         # update user status in the chat
@@ -1526,7 +1599,8 @@ class SurveyBot(telebot.TeleBot):
 
         # update user status in the chat
         self.user_cell_position[uid] = addr  # jumping to the next cell in user status
-        self.log_list[uid]['dest'] = addr
+
+        self.__add_to_log(uid, {'dest': addr})
         try:
             if not demo:
                 self.__savestatus(uid, self.user_cell_position[uid])  # saving status (cell id where the user is)
@@ -1576,8 +1650,6 @@ class SurveyBot(telebot.TeleBot):
         _id = int(chat_id)
         self.send_chat_action(_id, 'typing')
 
-        #self.log_list[uid]['status'] = self.user_cell_position[uid]
-
         markup = []  # , one_time_keyboard=True, resize_keyboard=True)
         question_text = ['']
         try:
@@ -1611,10 +1683,9 @@ class SurveyBot(telebot.TeleBot):
             else:
                 markup.append(None)
 
-        #msgs = content['content']
         for i in range(len(content)):
             m   = content[i]['content']
-            mrk =  markup[i]
+            mrk = markup[i]
 
             mtype = m[1]
             if m[0] == '':
@@ -1646,9 +1717,15 @@ class SurveyBot(telebot.TeleBot):
                     self.send_voice(_id, m[0])
             except Exception as err:
                 self.send_message(_id, m[0], reply_markup=mrk)
+                self.__add_to_log(uid, {'exit': 'Warning', 'error':str(err)})
                 print('Err in sayhello: ' + str(err))
 
-
+        self.__add_to_log(uid,{'exit':'Success'})
+        try:
+            self.data_table.addLogEntity(self.log_list)
+        except:
+            pass
+        self.log_list = {}
         pass
 
     def create_lesson_chat(self, addr, pupil_user):
@@ -1694,7 +1771,12 @@ class SurveyBot(telebot.TeleBot):
                 print(str(e))
                 time.sleep(15)
 
-
+    def __add_to_log(self, uid, dict):
+        uid = int(uid)
+        if not(uid in self.log_list):
+            self.log_list[uid] = {}
+        self.log_list[uid] = {**self.log_list[uid], **dict}
+        pass
     def __find_keys(self, d, value):
         return [key for key, x in d.items() if str(x) == str(value)]
 

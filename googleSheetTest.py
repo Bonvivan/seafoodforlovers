@@ -169,7 +169,7 @@ class GoogleTableReader():
     def __initLog(self, sheet = 'heaplog'):
 
         content = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId,
-                                                           range=sheet + '!' + 'A1:Z').execute()['values']
+                                                           range=sheet + '!' + 'A1:M').execute()['values']
         col_names = content[0]
         next_row = len(content)
 
