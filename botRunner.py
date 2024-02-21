@@ -945,6 +945,7 @@ class SurveyBot(telebot.TeleBot):
             except:
                 pass
             uid = callback_query.from_user.id
+            self.__add_to_log(uid, {'command': 'nextl', 'exit': 'Failed'})
             if not(self.check_paymant(uid)):
                 try:
                     self.edit_message_reply_markup(message_id=callback_query.message.chat.id, reply_markup='')
@@ -1148,7 +1149,7 @@ class SurveyBot(telebot.TeleBot):
                 self.__savestatus(uid, self.user_cell_position[uid], [curr_lsn, 1], ['curr_lesson', 'lessons_at_once'])
                 self.cleanSchedule(uid)
                 self.data_table.forceWrite()
-                self.log_list[uid]['rsult'] = 'Sucess'
+                self.log_list[uid]['exit'] = 'Sucess'
                 try:
                     self.data_table.addLogEntity(self.log_list)
                 except:
@@ -1349,6 +1350,10 @@ class SurveyBot(telebot.TeleBot):
                     return None
                 else:
                     addr[0] = uc[1]
+            elif (uc[0][:9] == 'remainder'):
+                addr, timer  = uc[1], uc[2]
+
+                pass
             pass
         pass
 
