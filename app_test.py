@@ -37,6 +37,7 @@ client = TelegramClient('MySuperSession', api_id, api_hash, system_version="4.16
 superbot_state_filepath = 'resources/superbot_state.json'
 superbot_state = {'tmp_chat_id':[]}
 
+
 self_id = 6604084268
 
 def decodeLinkEvent(event):
@@ -151,6 +152,12 @@ async def normal_handler(event):
             pupil       = command['args'][-1]
             addr        = command['args'][ 0]
             botuser     = command['args'][ 1]
+
+            for ent in superbot_state:
+                if int(superbot_state[ent]['pid']) == int(pupil):
+                    print('Trying to create extra chat for the same user! Intrrrupted!')
+                    return None
+
             result = await client(functions.messages.CreateChatRequest(users=admin_users,title= 'Langusto italiano per ' + pupil))
             txt = 'Это чат для обучения итальянскому с Langusto! \n\n Если ничего не происходит наберите /start для продолжения.'
             await client.send_message(result.chats[0].id, txt)
@@ -196,6 +203,8 @@ async def normal_handler(event):
         state_f = open(superbot_state_filepath, 'w')
         json.dump(superbot_state, state_f, indent=4)
         state_f.close()
+
+
 
 
 client.start()

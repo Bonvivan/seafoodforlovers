@@ -952,6 +952,7 @@ class SurveyBot(telebot.TeleBot):
                 except:
                     pass
                 return None
+            self.__add_to_log(uid, {'command': 'nextl'})
             goback_callback_button(callback_query)
 
         @self.callback_query_handler(func=lambda c: c.data.startswith('tch'))
@@ -1017,7 +1018,7 @@ class SurveyBot(telebot.TeleBot):
             except Exception as err:
                 print(err)
                 if cid in self.user_chat_id:
-                    self.__add_to_log(self.__find_keys(self.user_chat_id, cid), {'exit':'Failed', 'error':err, 'command':command})
+                    self.__add_to_log(self.__find_keys(self.user_chat_id, cid), {'exit': 'Failed', 'error':err, 'command': command})
                 else:
                     self.__add_to_log(uid, {'exit': 'Failed', 'error': err, 'command': command})
                 #self.logfile.write('Error! ' + str(err) + '\n')
@@ -1139,17 +1140,17 @@ class SurveyBot(telebot.TeleBot):
                 else:
                     chat_id = uid
 
-                self.log_list[uid] = {'id': uid, 'role': 'pupil', 'dptr':self.user_cell_position[uid], 'dest':evnt['cell'],
-                                      'status':self.user_cell_position[uid], 'last_activity_date': str(datetime.now(timezone.utc).isoformat()),
-                                      'in_group': chat_id < 0, 'exit': 'Failed'}
+                self.__add_to_log(uid, {'dptr':self.user_cell_position[uid], 'dest': evnt['cell'],
+                                           'status':self.user_cell_position[uid], 'exit': 'Failed'})#TODO replace by goahead
 
                 self.user_cell_position[uid] = evnt['cell']
                 self.say_hello(uid, chat_id)
-                curr_lsn = int(self.data_table.getFieldValue(uid, 'curr_lesson')) +1
+                curr_lsn = int(self.data_table.getFieldValue(uid, 'curr_lesson')) + 1
                 self.__savestatus(uid, self.user_cell_position[uid], [curr_lsn, 1], ['curr_lesson', 'lessons_at_once'])
                 self.cleanSchedule(uid)
                 self.data_table.forceWrite()
-                self.log_list[uid]['exit'] = 'Sucess'
+                self.__add_to_log(uid, {'exit': 'Success'})
+
                 try:
                     self.data_table.addLogEntity(self.log_list)
                 except:
@@ -1413,6 +1414,7 @@ class SurveyBot(telebot.TeleBot):
             if extra_lesson_num<3:
                 extra_lesson_num += 1
                 self.data_table.setFieldValues(uid, [curr_lsn+1, extra_lesson_num, ''], ['curr_lesson','lessons_at_once','delayed_event'])
+                self.cleanSchedule(uid)
             else:
                 self.send_message(chat_id, 'Нельзы получить больше уроков вне очереди.')
                 self.__add_to_log(uid, {'error': 'TooManyProssima'})
@@ -1445,7 +1447,7 @@ class SurveyBot(telebot.TeleBot):
             if cmd == 'controllato':
                 if tid in self.bot_state['chiefid']:
                     call_msg = self.data_table.getFieldValue(chat_id, 'call_message_id', key_column='chat_id')
-                    if not(call_msg is None):
+                    if not(call_msg is None or call_msg==''):
                         call_chat_id, call_msg_id, when = call_msg.split(';')
                         chat_ids = call_chat_id.split(',')
                         msg_ids  = call_msg_id .split(',')

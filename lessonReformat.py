@@ -70,7 +70,8 @@ for row in old_lessons:
     if row[1]=='' or True:
        # row[1] += '🤖 Напишите мне в ответном сообщении <b>//controlla</b>, и я отправлю Ваш урок на проверку преподавателю.\n'
         row[0] += '🤖 /status чтоб увидеть список всех доступных комманд.\n'
-        row[0] += '[[//controlla;lezione_A1!C' + str(row_id) + ';/ucommand]]\n'
+        row[0] += '[[//controlla;lezione_A1!C'   + str(row_id) + ';/ucommand]]\n'
+        row[0] += '[[//controllato;lezione_A1!D' + str(row_id) + ';/tcommand]]\n'
         row[0] += '[[//prossima;lezione_A1!A' + str(row_id + 1) + ';/ucommand]]\n'
         row[0] += '[[//prossima;lezione_A1!A' + str(row_id + 1) + ';/tcommand]]\n'
     if row[1] != '':
