@@ -153,8 +153,8 @@ async def normal_handler(event):
             addr        = command['args'][ 0]
             botuser     = command['args'][ 1]
 
-            for ent in superbot_state:
-                if int(superbot_state[ent]['pid']) == int(pupil):
+            for ent in superbot_state['tmp_chat_id']:
+                if int(ent['pid']) == int(pupil):
                     print('Trying to create extra chat for the same user! Intrrrupted!')
                     return None
 
@@ -162,8 +162,7 @@ async def normal_handler(event):
             txt = 'Это чат для обучения итальянскому с Langusto! \n\n Если ничего не происходит наберите /start для продолжения.'
             await client.send_message(result.chats[0].id, txt)
             txt = '/status чтоб помотреть доступные команды;\n/start если ничего не происходит или кажется, что что-то сломалось.'
-            msg = await client.send_message(result.chats[0].id, txt)
-            msg.pin()
+
             for bu in admin_users:
                 try:
                     await client.edit_admin(result.chats[0], bu, is_admin=True, add_admins=False)
@@ -171,6 +170,9 @@ async def normal_handler(event):
                     pass
 
             invite_link = await client(ExportChatInviteRequest(result.chats[0]))
+
+            msg = await client.send_message(result.chats[0].id, txt)
+            await msg.pin(pm_oneside=True, notify=True)
 
             z = re.match(r'.*link=\'(https:\S+)\'.*', str(invite_link))
             if z.groups()[0]:
