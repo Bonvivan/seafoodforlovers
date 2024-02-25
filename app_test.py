@@ -153,8 +153,8 @@ async def normal_handler(event):
             addr        = command['args'][ 0]
             botuser     = command['args'][ 1]
 
-            for ent in superbot_state:
-                if int(superbot_state[ent]['pid']) == int(pupil):
+            for ent in superbot_state['tmp_chat_id']:
+                if int(ent['pid']) == int(pupil):
                     print('Trying to create extra chat for the same user! Intrrrupted!')
                     return None
 
@@ -173,6 +173,9 @@ async def normal_handler(event):
             msg.pin(pm_oneside=True, notify=True)
 
             invite_link = await client(ExportChatInviteRequest(result.chats[0]))
+
+            msg = await client.send_message(result.chats[0].id, txt)
+            await msg.pin(pm_oneside=True, notify=True)
 
             z = re.match(r'.*link=\'(https:\S+)\'.*', str(invite_link))
             if z.groups()[0]:
