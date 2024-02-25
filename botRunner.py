@@ -226,6 +226,10 @@ class SurveyBot(telebot.TeleBot):
                 self.user_chat_id[int(uid)] = cid
                 link = self.create_chat_invite_link(cid).invite_link
                 data_table.setFieldValue(int(uid), link, 'chat_link')
+
+                p_message = self.send_message(cid, '<b>/status</b> чтоб помотреть доступные команды;\n<b>/start</b> если ничего не происходит или кажется, что что-то сломалось.')
+                self.pin_chat_message(chat_id=p_message.chat.id, message_id=p_message.message_id)
+
                 self.start_lesson(int(uid), cid, message)
                 self.cleanReminders(int(uid))
             except Exception as err:
@@ -389,6 +393,9 @@ class SurveyBot(telebot.TeleBot):
                         self.data_table.setFieldValue(uid, link, 'chat_id')
                         data_table.setFieldValues(int(uid), [cid, now.isoformat()], ['chat_id', 'date_start'])
                         self.user_chat_id[int(uid)] = cid
+                        p_message = self.send_message(cid,
+                                                      '<b>/status</b> чтоб помотреть доступные команды;\n<b>/start</b> если ничего не происходит или кажется, что что-то сломалось.')
+                        self.pin_chat_message(chat_id=cid, message_id=p_message.message_id)
                         self.start_lesson(int(uid), cid, message)
                     except:
                         print('Error at /start for: ' + str(uid) + ' at chat: '+ str(cid)+'. User not a member of the chat.')

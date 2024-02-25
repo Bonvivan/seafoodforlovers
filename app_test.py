@@ -162,13 +162,15 @@ async def normal_handler(event):
             txt = 'Это чат для обучения итальянскому с Langusto! \n\n Если ничего не происходит наберите /start для продолжения.'
             await client.send_message(result.chats[0].id, txt)
             txt = '/status чтоб помотреть доступные команды;\n/start если ничего не происходит или кажется, что что-то сломалось.'
-            msg = await client.send_message(result.chats[0].id, txt)
-            msg.pin()
+
             for bu in admin_users:
                 try:
                     await client.edit_admin(result.chats[0], bu, is_admin=True, add_admins=False)
                 except:
                     pass
+
+            msg = await client.send_message(result.chats[0].id, txt)
+            msg.pin(pm_oneside=True, notify=True)
 
             invite_link = await client(ExportChatInviteRequest(result.chats[0]))
 
