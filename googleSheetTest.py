@@ -114,7 +114,7 @@ class GoogleTableReader():
         print('Access counter, read: ' + str(self.read_counter))
         self.read_counter  = 0
         self.write_counter = 0
-        self.header = self.__readHeader()
+        #self.header = self.__readHeader()
         self.__updateRemoteSpreadsheet()
     @my_shiny_new_decorator
     def __reconnect(self):

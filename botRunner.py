@@ -34,7 +34,7 @@ class SurveyBot(telebot.TeleBot):
     data_table = None
 
     user_cell_position = {}
-    user_reminder = {}
+    reminders = {}
     user_chat_id  = {}
     user_command  = {}
     conditions    = {}
@@ -224,7 +224,10 @@ class SurveyBot(telebot.TeleBot):
             try:
                 data_table.setFieldValues(int(uid), [cid, ch_date], ['chat_id', 'date_start'])
                 self.user_chat_id[int(uid)] = cid
+                link = self.create_chat_invite_link(cid).invite_link
+                data_table.setFieldValue(int(uid), link, 'chat_link')
                 self.start_lesson(int(uid), cid, message)
+                self.cleanReminders(int(uid))
             except Exception as err:
                 self.data_table.critical_flag = False
                 self.send_message(cid,
@@ -241,15 +244,19 @@ class SurveyBot(telebot.TeleBot):
             try:
                 cmd = tp.parseCommand(message.text)
                 _id = int(cmd['args'][0])
-                addr = cmd['args'][-2]
-                flag = int(cmd['args'][-1])
+                try:
+                    addr = cmd['args'][-2]
+                    flag = int(cmd['args'][-1])
+                except:
+                    flag = False
+
                 if bool(flag):
                     self.send_message(_id, cmd['args'][1])
                     self.user_cell_position[_id] = addr
                     self.data_table.setFieldValue(_id, addr, 'status')
                     print('MSG to user: ' + str(_id) + '; msg: ' + str(message.text))
                 else:
-                    self.send_message(_id, "Пока не удалось создать чать. Чуть позже мы попробуем еще раз и пришлем ссылку.")
+                    self.send_message(_id, cmd['args'][1])
 
             except Exception as err:
                 print('Err in tunnel_msg: ' + str(err))
@@ -368,6 +375,7 @@ class SurveyBot(telebot.TeleBot):
                     try:
                         link = self.create_chat_invite_link(int(self.user_chat_id[uid])).invite_link
                         self.send_message(cid, 'Перейдите в обучающий чат: ' + link)
+                        self.data_table.setFieldValue(uid, link, 'chat_id')
                         return None
                     except:
                         self.user_chat_id[uid] = -1
@@ -377,6 +385,8 @@ class SurveyBot(telebot.TeleBot):
                     try:
                         self.get_chat_member(cid, uid)
                         now = datetime.utcnow().date()
+                        link = self.create_chat_invite_link(int(self.user_chat_id[uid])).invite_link
+                        self.data_table.setFieldValue(uid, link, 'chat_id')
                         data_table.setFieldValues(int(uid), [cid, now.isoformat()], ['chat_id', 'date_start'])
                         self.user_chat_id[int(uid)] = cid
                         self.start_lesson(int(uid), cid, message)
@@ -395,6 +405,7 @@ class SurveyBot(telebot.TeleBot):
                 self.user_command[uid]=[]
                 self.teacher_command[uid]=[]
                 self.schedule.pop(uid, None)
+                self.reminders.pop(uid, None)
                 pupil_info = self.__create_user(self.survey_dict,
                                                 message.from_user)  # TODO change to save next state, not current
                 self.data_table.addPupil(pupil_info)
@@ -432,7 +443,7 @@ class SurveyBot(telebot.TeleBot):
             self.data_table.setFieldValue(uid,
                                           str(all_chat_ids) + ';' + str(all_msg_ids) + ';' + str(
                                               now.isoformat()), 'tech_call')
-
+            self.data_table.setFieldValue(uid, link, 'chat_link')
             result = self.send_message(cid, 'Запрос отправлен!')
             pass
 
@@ -456,7 +467,7 @@ class SurveyBot(telebot.TeleBot):
             self.data_table.setFieldValue(uid,
                                           str(all_chat_ids) + ';' + str(all_msg_ids) + ';' + str(
                                               now.isoformat()), 'question')
-
+            self.data_table.setFieldValue(uid, link, 'chat_link')
             result = self.send_message(cid, 'Запрос отправлен!')
             pass
 
@@ -473,14 +484,14 @@ class SurveyBot(telebot.TeleBot):
             try:
                 chat_ids = call_chat_id.split(',')
                 msg_ids = call_msg_id.split(',')
+                link = self.data_table.getFieldValue(int(cid), 'chat_link', key_column='chat_id')
                 for c_id, m_id in zip(chat_ids, msg_ids):
-                    self.edit_message_text('Запрос снят', chat_id=int(c_id), message_id=int(m_id))
+                    self.edit_message_text('Запрос о сбое в чате снят: ' + str(link), chat_id=int(c_id), message_id=int(m_id))
             except Exception as err:
                 print('edit_message_text(Запрос снят' + str(err))
                 pass
-            self.data_table.setFieldValue(cid, None, 'tech_call', key_column='chat_id')
-
-            self.send_message(cid, 'Запрос о сбое в чате снят')
+            self.data_table.setFieldValue(cid, '', 'tech_call', key_column='chat_id')
+            self.send_message(cid, 'Запрос о сбое снят')
             pass
 
         @self.message_handler(commands=['risolto'])
@@ -496,14 +507,17 @@ class SurveyBot(telebot.TeleBot):
             try:
                 chat_ids = call_chat_id.split(',')
                 msg_ids = call_msg_id.split(',')
+                link = self.data_table.getFieldValue(int(cid), 'chat_link', key_column='chat_id')
                 for c_id, m_id in zip(chat_ids, msg_ids):
-                    self.edit_message_text('Запрос снят', chat_id=int(c_id), message_id=int(m_id))
+                    self.edit_message_text('Вопрос в чате снят: ' + str(link), chat_id=int(c_id), message_id=int(m_id))
             except Exception as err:
                 print('edit_message_text(Запрос снят' + str(err))
                 pass
-            self.data_table.setFieldValue(cid, None, 'question', key_column='chat_id')
+            self.data_table.setFieldValue(cid, '', 'question', key_column='chat_id')
+            self.send_message(cid, 'Вопрос снят')
 
-            self.send_message(cid, 'Вопрос в чате снят')
+
+
             pass
 
         @self.message_handler(commands=['delete'])
@@ -622,7 +636,7 @@ class SurveyBot(telebot.TeleBot):
                         pass
                 when = datetime.fromisoformat(user_status['date_start'])
                 txt += "Начало обучения " + str(when.date())
-                if 'curr_lesson' in user_status.keys() and user_status['curr_lesson'] != '':
+                if 'curr_lesson' in user_status.keys() and user_status['curr_lesson'] != '' and not(user_status['curr_lesson'] is None):
                     curr_lesson = int(user_status['curr_lesson'])
                     txt += '\n<b>Текущий урок: ' + str(curr_lesson) +'</b>'
                 self.send_message(cid, txt, parse_mode='html')
@@ -631,14 +645,14 @@ class SurveyBot(telebot.TeleBot):
                     link = self.create_chat_invite_link(chat_id).invite_link
                     self.send_message(cid, "Ваш чат для обучения: " + link)
                     return None
-                if 'call_message_id' in user_status.keys() and user_status['call_message_id'] != '':
+                if 'call_message_id' in user_status.keys() and user_status['call_message_id'] != '' and not(user_status['call_message_id'] is None):
                     r1, r2, when = user_status['call_message_id'].split(';')
                     when = datetime.fromisoformat(when)
                     self.send_message(cid, "Отправлен запрос на проверку " +
                                       str(when.date()) + ' в ' +
                                       str(when.hour) + ':' + str(when.minute) + 'GMT;')
 
-                if 'tech_call' in user_status.keys() and user_status['tech_call'] != '':
+                if 'tech_call' in user_status.keys() and user_status['tech_call'] != '' and not(user_status['tech_call'] is None):
                     r1, r2, when = user_status['tech_call'].split(';')
                     when = datetime.fromisoformat(when)
                     self.send_message(cid, "Отправлено уведомление о сбое " +
@@ -648,7 +662,7 @@ class SurveyBot(telebot.TeleBot):
                     commands_guru.setMask('funziona', True)
                     #txt += "\n/funziona - снять запрос на вызов преподавателя;\n"
 
-                if 'question' in user_status.keys() and user_status['question'] != '':
+                if 'question' in user_status.keys() and user_status['question'] != '' and not(user_status['question'] is None):
                     r1, r2, when = user_status['question'].split(';')
                     when = datetime.fromisoformat(when)
                     self.send_message(cid, "Отправлено уведомление о вопросе " +
@@ -658,7 +672,7 @@ class SurveyBot(telebot.TeleBot):
                     commands_guru.setMask('risolto', True)
                     #txt += "\n/risolto - снять запрос на вызов преподавателя;\n"
 
-                if 'delayed_event' in user_status.keys() and user_status['delayed_event'] != '':
+                if 'delayed_event' in user_status.keys() and user_status['delayed_event'] != '' and not(user_status['delayed_event'] is None):
                     when, cell = user_status['delayed_event'].split(';')
                     when = datetime.fromisoformat(when)
                     self.send_message(cid, "Следующий урок будет выслан: " +
@@ -668,7 +682,7 @@ class SurveyBot(telebot.TeleBot):
                     score = int(user_status['score'])
                     self.send_message(cid, "На вашем счету: " + str(score) + ' баллов.')
 
-                if 'payment_date' in user_status.keys() and user_status['payment_date'] != '':
+                if 'payment_date' in user_status.keys() and user_status['payment_date'] != '' and not(user_status['payment_date'] is None):
                     when = datetime.fromisoformat(user_status['payment_date'])
                     period = int(user_status['period'])
                     l_num = int(user_status['lesson_num'])
@@ -944,7 +958,8 @@ class SurveyBot(telebot.TeleBot):
                 self.answer_callback_query(callback_query.id)
             except:
                 pass
-            uid = callback_query.from_user.id
+            cid = callback_query.message.chat.id
+            uid = self.__find_keys(self.user_chat_id, cid)[0]
             self.__add_to_log(uid, {'command': 'nextl', 'exit': 'Failed'})
             if not(self.check_paymant(uid)):
                 try:
@@ -1078,6 +1093,7 @@ class SurveyBot(telebot.TeleBot):
         chat_id_index = all_pupils[0].index('chat_id')
         cell_index = all_pupils[0].index('status')
         schedule_index = all_pupils[0].index('delayed_event')
+        reminder_index = all_pupils[0].index('reminder')
         frozen_index = all_pupils[0].index('freeze')
 
         ids = [int(row[id_index]) for row in all_pupils[4:]]
@@ -1085,6 +1101,7 @@ class SurveyBot(telebot.TeleBot):
         cell_ids = [row[cell_index] for row in all_pupils[4:]]
         schedule = [row[schedule_index] for row in all_pupils[4:]]
         frozen   = [row[frozen_index] for row in all_pupils[4:]]
+        reminders = [row[reminder_index] for row in all_pupils[4:]]
 
         for i in range(len(ids)):
             if ids[i]!=_id and _id!=-1:
@@ -1111,6 +1128,14 @@ class SurveyBot(telebot.TeleBot):
                 print('Err in time decoding: init_state:' + str(err))
                 pass
 
+            try:
+                sch_data = reminders[i].split(';')
+                if not(sch_data[0] == ''):
+                    self.reminders[ids[i]] = {'time': datetime.fromisoformat(sch_data[0]), 'cell': sch_data[1]}
+            except Exception as err:
+                print('Err in time decoding: init_state:' + str(err))
+                pass
+
         for uid in ids:
             if _id == -1 or uid == _id:
                 self.read_from_cell(uid)
@@ -1123,7 +1148,7 @@ class SurveyBot(telebot.TeleBot):
     pass
 
     def checkSchedule(self):
-        threading.Timer(300.0, self.checkSchedule).start()
+        threading.Timer(60.0, self.checkSchedule).start()
         print('checkSchedule')
         for uid in list(self.schedule.keys()):
             if not(uid in self.schedule):
@@ -1135,31 +1160,58 @@ class SurveyBot(telebot.TeleBot):
                 if self.user_frozen[uid]:
                     continue
 
-                if uid in self.user_chat_id:
+                chat_id = uid
+                if uid in self.user_chat_id and self.user_chat_id[uid] < -1:
                     chat_id = self.user_chat_id[uid]
-                else:
-                    chat_id = uid
 
                 self.__add_to_log(uid, {'dptr':self.user_cell_position[uid], 'dest': evnt['cell'],
                                            'status':self.user_cell_position[uid], 'exit': 'Failed'})#TODO replace by goahead
 
                 self.user_cell_position[uid] = evnt['cell']
-                self.say_hello(uid, chat_id)
+                try:
+                    self.say_hello(uid, chat_id)
+                except:
+                    pass
                 curr_lsn = int(self.data_table.getFieldValue(uid, 'curr_lesson')) + 1
                 self.__savestatus(uid, self.user_cell_position[uid], [curr_lsn, 1], ['curr_lesson', 'lessons_at_once'])
+                self.data_table.setFieldValue(uid, '', 'reminder')
+                self.reminders.pop(uid, '')
                 self.cleanSchedule(uid)
                 self.data_table.forceWrite()
                 self.__add_to_log(uid, {'exit': 'Success'})
-
                 try:
                     self.data_table.addLogEntity(self.log_list)
                 except:
                     pass
+
+        for uid in list(self.reminders.keys()):
+            evnt = self.reminders.get(uid, None)
+            if evnt is None:
+                continue
+            if evnt['time'] <= datetime.utcnow():
+                if self.user_frozen[uid]:
+                    continue
+
+                chat_id = uid
+                if uid in self.user_chat_id and int(self.user_chat_id[uid]) < -1:
+                    chat_id = self.user_chat_id[uid]
+
+                try:
+                    self.show_cell(chat_id, evnt['cell'])
+                except:
+                    pass
+
+                self.data_table.setFieldValue(uid, '', 'reminder')
+                self.reminders.pop(uid, None)
         pass
 
     def cleanSchedule(self, uid):
         self.data_table.setFieldValue(uid, '', 'delayed_event')
         self.schedule.pop(uid, '')
+
+    def cleanReminders(self, uid):
+        self.reminders.pop(int(uid), None)
+        self.data_table.setFieldValue(int(uid), '', 'reminder')
 
     def start_lesson(self, uid, chat_id, message):
         print('start_lesson')
@@ -1351,11 +1403,6 @@ class SurveyBot(telebot.TeleBot):
                     return None
                 else:
                     addr[0] = uc[1]
-            elif (uc[0][:9] == 'remainder'):
-                addr, timer  = uc[1], uc[2]
-
-                pass
-            pass
         pass
 
         for uc in conditions:
@@ -1394,8 +1441,9 @@ class SurveyBot(telebot.TeleBot):
             now = datetime.utcnow()
             all_chat_ids = ','.join([str(res.chat.id) for res in result])
             all_msg_ids  = ','.join([str(res.message_id) for res in result])
-            self.data_table.setFieldValue(uid, all_chat_ids + ';' + all_msg_ids + ';' + str(
+            self.data_table.setFieldValues(uid, all_chat_ids + ';' + all_msg_ids + ';' + str(
                 now.isoformat()), 'call_message_id')
+            self.data_table.setFieldValue(uid, link, 'chat_link')
 
         if cmd == 'prossima':
             if not(self.check_paymant(uid)):
@@ -1453,7 +1501,8 @@ class SurveyBot(telebot.TeleBot):
                         msg_ids  = call_msg_id .split(',')
                         for c_id, m_id in zip(chat_ids, msg_ids):
                             try:
-                                self.edit_message_text('Урок проверен', chat_id=int(c_id), message_id=int(m_id))
+                                link = self.data_table.getFieldValue(int(c_id), 'chat_link', key_column='chat_id')
+                                self.edit_message_text('Урок проверен для в чате:\n' + link, chat_id=int(c_id), message_id=int(m_id))
                             except:
                                 pass
 
@@ -1490,6 +1539,7 @@ class SurveyBot(telebot.TeleBot):
                     extra_lesson_num += 1
                     self.data_table.setFieldValues(uid, [curr_lsn + 1, extra_lesson_num, ''],
                                                    ['curr_lesson', 'lessons_at_once', 'delayed_event'])
+                    self.cleanSchedule(uid)
                 else:
                     self.send_message(chat_id, 'Нельзы получить больше уроков вне очереди.')
                     self.__add_to_log(uid, {'error': 'TooManyProssima'})
@@ -1613,6 +1663,8 @@ class SurveyBot(telebot.TeleBot):
                 self.__savestatus(uid, self.user_cell_position[uid])  # saving status (cell id where the user is)
         except Exception as err:
             print('Errr in __savestatus: ' + str(err))
+
+        self.cleanReminders(uid)
         self.say_hello(uid, chat_id)  # sending a reply (content of the message froma cell)
 
         try:
@@ -1808,7 +1860,17 @@ class SurveyBot(telebot.TeleBot):
         user_status = self.user_cell_position[id]
         open_input_flad = 0
         for b in content:
-            title, addr, sp = b
+            cond = True
+            title, addr, sp = b[:3]
+            if len(b)>3 and not(b[3] is None) and b[3]>'':
+                cond = tp.parseExecValue(b[3], lambda x: self.data_table.getFieldValue(id, x))
+            try:
+                if not(eval(str(cond))):
+                    continue
+            except:
+                print('Error in reading command ' + str(content) + ' for ' + str(id))
+                pass
+
             title = title.strip()
             # if sp == '/input' and open_input_flad == 0:
             #    btns.append(None)
@@ -1862,7 +1924,15 @@ class SurveyBot(telebot.TeleBot):
                 #btns.append(None)
                 self.conditions[chat_id].append(['check:' + title, addr])
                 pass
-
+            if sp.split(':')[0] == '/reminder':
+                if id in self.reminders:
+                    continue
+                _when = datetime.utcnow() + dt.timedelta(minutes=int(sp.split(':')[1]))
+                _when = datetime.utcnow() + dt.timedelta(minutes=3) # TODO comment here for debug
+                event_stamp = str(_when.isoformat()) + ';' + addr
+                self.data_table.setFieldValue(id, event_stamp, 'reminder')
+                self.reminders[id] = {'time': _when, 'cell': addr}
+                pass
             if sp == '/set':
                 #btns.append(None)
                 self.conditions[chat_id].append(['set;' + title, addr])

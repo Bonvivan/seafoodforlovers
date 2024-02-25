@@ -48,6 +48,14 @@ def parseCommand(msg):
     command['args']    = msg_list[1:]
     return  command
 
+def parseExecValue(expr, data):
+    field = re.findall('\?\?\?(\S+)\?\?\?', expr)
+    for f in field:
+        val = data(f.strip())
+        if val=='':
+            val="\'\'"
+        expr = expr.replace('???' + f + '???', str(val))
+    return expr
 def parseFreeze(msg):
     result = []
     if msg=='' or msg is None:
@@ -137,7 +145,8 @@ def parseMessageFast(msg, past_answer=''): #TODO implement a class message, keep
             b = buttons[i]
             details = b.split(';')
             details.append(None)
-            result[-1]['buttons'].append([details[0], details[1].strip(), details[2]])
+            #result[-1]['buttons'].append([details[0], details[1].strip(), details[2]])
+            result[-1]['buttons'].append([*details])
 
     return result
 
@@ -193,7 +202,8 @@ def parseMessage(msg, past_answer=''): #TODO implement a class message, keeping 
             b = buttons[i]
             details = b.split(';')
             details.append(None)
-            result[-1]['buttons'].append([details[0],details[1].strip(),details[2]])
+            #result[-1]['buttons'].append([details[0],details[1].strip(),details[2]])
+            result[-1]['buttons'].append([*details])
 
     return result
 

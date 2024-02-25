@@ -161,6 +161,9 @@ async def normal_handler(event):
             result = await client(functions.messages.CreateChatRequest(users=admin_users,title= 'Langusto italiano per ' + pupil))
             txt = 'Это чат для обучения итальянскому с Langusto! \n\n Если ничего не происходит наберите /start для продолжения.'
             await client.send_message(result.chats[0].id, txt)
+            txt = '/status чтоб помотреть доступные команды;\n/start если ничего не происходит или кажется, что что-то сломалось.'
+            msg = await client.send_message(result.chats[0].id, txt)
+            msg.pin()
             for bu in admin_users:
                 try:
                     await client.edit_admin(result.chats[0], bu, is_admin=True, add_admins=False)
@@ -184,7 +187,7 @@ async def normal_handler(event):
 
                 for au in admin_users:
                     try:
-                        await client.send_message(au, 'Создан новый обучающий чат: \n' + invite_link)
+                        await client.send_message(au, '/tunnelmsg;'+au+'Создан новый обучающий чат, ожидание присоединения пользователя: \n' + invite_link)
                     except:
                         pass
             else:

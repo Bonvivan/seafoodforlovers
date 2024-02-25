@@ -17,6 +17,11 @@ old_lessons = lesson_table.getAllValue(sheetName='lsn_tmp')
 #old_lessons = old_lessons[1:]
 
 start_row = -1
+'''
+[[;lezione_B2!E1;/reminder:420;???curr_lesson???<=1]]
+[[;lezione_B2!F1;/reminder:420;???curr_lesson???==2]]
+[[;lezione_B2!G1;/reminder:420;???curr_lesson???==3]]
+'''
 
 '''
 for row in old_lessons:
@@ -49,18 +54,40 @@ for row in old_lessons:
     row[1], row[2] = answer2, answer1
     pass
 '''
+'''
+
+k = 0
 for row in old_lessons:
-    for i in range(1):
+    print(k)
+    k+=1
+    for k in range(3):
+        i = 0
         answer = row[i]
-        pattern = r'\[\[.+\;lezione.+]\]\n?'
+        pattern = r'\[\[.*\;lezione.+]\]\n?'
         repl = r''
         answer1 = re.sub(pattern, repl, answer)
-
-        pattern = r'\n*\[\[.+\;lezione.+]\]\n*'
-
+        pattern = r'\[\[.*\;lezione.+]\]\n?'
         row[i] = answer1
+        break
     pass
+'''
 
+row_id = 0
+for row in old_lessons:
+    row_id += 1
+    if len(row)<2:
+        continue
+    row[0] += ("[[;lezione_B2!E1;/reminder:240;???curr_lesson???<=1]]"
+               "\n[[;lezione_B2!F1;/reminder:240;???curr_lesson???==2]]"
+               "\n[[;lezione_B2!G1;/reminder:240;???curr_lesson???==3]]")
+    row[3] = 'Урок проверен. 🥳🥳🥳\n[[Следующий урок;lezione_B2!A' + str(row_id + 1) + ';/tomorrow;???payment_info???>\'\']]\n'
+    row[3] += '[[Следующий урок;lezione_B2!A' + str(row_id + 1) + ';/nextl;???payment_info???==\'\']]\n'
+    row[3] += '[[//prossima;lezione_B2!A' + str(row_id + 1) + ';/tcommand]]\n'
+    row[3] += '[[//prossima;lezione_B2!A' + str(row_id + 1) + ';/ucommand]]\n'
+    if row[1] != '':
+        row[3] += '[[//le_risposte;lezione_B2!B' + str(row_id) + ';/tcommand]]\n'
+
+'''
 row_id = 0
 ii=0
 for row in old_lessons:
@@ -68,29 +95,32 @@ for row in old_lessons:
     if len(row)<2:
         continue
     if row[1]=='' or True:
-       # row[1] += '🤖 Напишите мне в ответном сообщении <b>//controlla</b>, и я отправлю Ваш урок на проверку преподавателю.\n'
-        row[0] += '🤖 /status чтоб увидеть список всех доступных комманд.\n'
-        row[0] += '[[//controlla;lezione_A1!C'   + str(row_id) + ';/ucommand]]\n'
-        row[0] += '[[//controllato;lezione_A1!D' + str(row_id) + ';/tcommand]]\n'
-        row[0] += '[[//prossima;lezione_A1!A' + str(row_id + 1) + ';/ucommand]]\n'
-        row[0] += '[[//prossima;lezione_A1!A' + str(row_id + 1) + ';/tcommand]]\n'
+        row[0] += '--new-message--\n'
+        row[0] += '🤖 Напишите мне в ответном сообщении <b>//controlla</b>, и я отправлю Ваш урок на проверку преподавателю.\n'
+        #row[0] += '🤖 /status чтоб увидеть список всех доступных комманд.\n'
+        row[0] += '[[//controlla;lezione_B2!C'   + str(row_id) + ';/ucommand]]\n'
+        row[0] += '[[//controllato;lezione_B2!D' + str(row_id) + ';/tcommand]]\n'
     if row[1] != '':
         #row[1] += '\n--new-message--\n'
         #row[1] += '🤖 Отправьте мне в сообщении <b>//le_risposte</b>, и я пришлю Вам ответы\n'
-        row[0] += '[[//le_risposte;lezione_A1!B' + str(row_id) + ';/tcommand]]'
+        row[0] += '[[//le_risposte;lezione_B2!B' + str(row_id) + ';/tcommand]]'
     row.append('')
     row.append('')
-    row[2] = 'Урок отправлен на проверку, спасибо! 🥳🥳🥳\n[[//controllato;lezione_A1!D' + str(row_id) + ';/tcommand]]\n'
-    row[2] += '[[//le_risposte;lezione_A1!B' + str(row_id) + ';/tcommand]]\n'
-    row[2] += '[[//prossima;lezione_A1!A' + str(row_id + 1) + ';/tcommand]]\n'
-    row[2] += '[[//prossima;lezione_A1!A' + str(row_id + 1) + ';/ucommand]]\n'
-    row[3] = 'Урок проверен. 🥳🥳🥳\n[[Следующий урок;lezione_A1!A' + str(row_id+1) + ';/tomorrow]]\n'
-    row[3] += '[[//prossima;lezione_A1!A' + str(row_id + 1) + ';/tcommand]]\n'
-    row[3] += '[[//prossima;lezione_A1!A' + str(row_id + 1) + ';/ucommand]]\n'
+    row[2] = 'Урок отправлен на проверку, спасибо! 🥳🥳🥳\n[[//controllato;lezione_B2!D' + str(row_id) + ';/tcommand]]\n'
+    if row[1] != '':
+        row[2] += '[[//le_risposte;lezione_B2!B' + str(row_id)  + ';/tcommand]]\n'
+    row[2] += '[[//prossima;lezione_B2!A' + str(row_id + 1) + ';/tcommand]]\n'
+    row[2] += '[[//prossima;lezione_B2!A' + str(row_id + 1) + ';/ucommand]]\n'
+    row[3] = 'Урок проверен. 🥳🥳🥳\n[[Следующий урок;lezione_B2!A' + str(row_id+1) + ';/tomorrow]]\n'
+    row[3] += '[[//prossima;lezione_B2!A' + str(row_id + 1) + ';/tcommand]]\n'
+    row[3] += '[[//prossima;lezione_B2!A' + str(row_id + 1) + ';/ucommand]]\n'
+    if row[1] != '':
+        row[3] += '[[//le_risposte;lezione_B2!B' + str(row_id)  + ';/tcommand]]\n'
 
     old_lessons[ii] = row[0:4]
     ii+=1
 
+'''
 lesson_table.setValue(old_lessons, 'lsn_tmp_res', 'A1:Z999')
 
 print('END')
