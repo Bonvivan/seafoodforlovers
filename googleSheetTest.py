@@ -412,10 +412,10 @@ class GoogleTableReader():
         return pupil_info
 
     @my_shiny_new_decorator
-    def getAllValue(self, sheetName):
+    def getAllValue(self, sheetName, range='A:BZ'):
         print('getAllValue')
         # self.service = apiclient.discovery.build('sheets', 'v4', http=self.httpAuth)
-        rng = sheetName + '!' + 'A1:BZ999'
+        rng = sheetName + '!' + range
         self.read_counter += 1
         results = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheetId, range=rng).execute()
         if not ('values' in results):

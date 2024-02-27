@@ -55,6 +55,7 @@ class SurveyBot(telebot.TeleBot):
 
     logfile = ''
 
+    spam_message = None
 
     def __init__(self, bot_token, data_table, pay_tocken):
         super().__init__(bot_token, threaded=False)
@@ -287,70 +288,73 @@ class SurveyBot(telebot.TeleBot):
         @self.single_user_decorator
         def sendtocold_command(message):
             print('send_to_cold')
-            uid = message.from_user.id
-            cid = message.chat.id
-            if not('chiefid' in self.bot_state and uid in self.bot_state['chiefid']):
+            tid = message.from_user.id
+
+            if not('chiefid' in self.bot_state and tid in self.bot_state['chiefid']):
+                self.send_message(tid, 'Вы не учитель. Команда доступна только для учителя.')
                 return None
 
-            cell = message.text.split(';')[-1]
-            msg = self.data_table.getValueFromStr(cell)[0][0]
-            content = tp.parseMessage(msg, '')
-            for i in range(len(content)):
-                content[i]['buttons'] = self.__anonKeyFromContent(content[i]['buttons'],cell)
-
-            cold_users = self.data_table.getAllValue(sheetName='cold')
-            dest = []
-            for row in cold_users[4:]:
-                dest.append(int(row[0]))
-
-            markup = []
-            for i in range(len(content)):
-                if len(content[i]['buttons']) > 0:
-                    markup.append(types.InlineKeyboardMarkup(row_width=2))
-                    for b in content[i]['buttons']:
-                        markup[-1].add(b)
-                else:
-                    markup.append(None)
-
-            for _id in dest:
+            if (self.spam_message is None):
+                cell = message.text.split(';')[-1]
+                msg = self.data_table.getValueFromStr(cell)[0][0]
+                content = tp.parseMessage(msg, '')
                 for i in range(len(content)):
-                    m = content[i]['content']
-                    mrk = markup[i]
+                    content[i]['buttons'] = self.__anonKeyFromContent(content[i]['buttons'], cell)
+                self.spam_message = [content,None]
+                self.anonMessageSend(tid, tid, self.spam_message[0])
+                markup = types.InlineKeyboardMarkup(row_width=2)
+                callback = 'clearspam;;;'
+                markup.add(types.InlineKeyboardButton('No, arret!', callback_data=callback))
+                self.spam_message[1] = self.send_message(tid, "👆Ce message sera envoye.👆\nPour continuer repeter la command.", reply_markup=markup)
+                return None
 
-                    mtype = m[1]
-                    if m[0] == '':
-                        continue
-                    print('Sending part of message')
-                    try:
-                        if mtype == tp.MSG_TYPE.text:
-                            corr_m = m[0]
-                            field = re.findall('\?\?\?(\S+)\?\?\?', corr_m)
-                            for f in field:
-                                val = self.data_table.getFieldValue(uid, f.strip())
-                                corr_m = corr_m.replace('???' + f + '???', str(val))
-                            self.send_message(_id, corr_m, reply_markup=mrk,
-                                          parse_mode='html')  # TODO define abstract class MSG sending an apppropriate type of msg (method send())
-                        elif mtype == tp.MSG_TYPE.gallery:
-                            gal = [telebot.types.InputMediaPhoto(p) for p in content[i]['content'][0]]
-                            self.send_media_group(_id, gal)
-                        elif mtype == tp.MSG_TYPE.image:
-                            self.send_photo(_id, m[0], reply_markup=mrk)
-                        elif mtype == tp.MSG_TYPE.video:
-                            try:
-                                self.send_video(_id, m[0], reply_markup=mrk)
-                            except:
-                                corr_url = m[0].replace('https://dl.dropboxusercontent.com/', 'https://www.dropbox.com/')
-                                self.send_message(_id, corr_url)
-                        elif mtype == tp.MSG_TYPE.audio:
-                            self.send_audio(_id, m[0], reply_markup=mrk)
-                        elif mtype == tp.MSG_TYPE.audionote:
-                            self.send_voice(_id, m[0])
-                    except Exception as err:
-                        try:
-                            self.send_message(_id, m[0], reply_markup=mrk)
-                        except:
-                            print('Err in sayhello: ' + str(_id) + ': ' + str(err) + '. Continue spam sending...')
-                            pass
+            cold_users = self.data_table.getAllValue(sheetName='cold', range='A1:C999')
+            dest = []
+            for row in cold_users[1:]:
+                try:
+                    dest.append([int(row[0]), row[2],False,'UnknownFilter'])
+                except:
+                    dest.append([0, row[2],False,''])
+
+            succes_counter = 0
+            total_counter = 0
+            for ent in dest:
+                uid = ent[0]
+                if uid==0:
+                    continue
+                total_counter+=1
+                cid = uid
+                if ent[1] == 'nochat':
+                    if uid in self.user_chat_id and int(self.user_chat_id[uid]) < -1:
+                        ent[2], ent[3] = False, 'Filtered'
+                    else:
+                        ent[2], ent[3] = self.anonMessageSend(uid, uid, self.spam_message[0])
+                if ent[1] == 'chat':
+                    if int(cid)!=int(uid):
+                        ent[2], ent[3] = self.anonMessageSend(cid, uid, self.spam_message[0])
+                    else:
+                        ent[2], ent[3] = False,'Filtered'
+                if ent[1] == 'bot':
+                    ent[2], ent[3] = self.anonMessageSend(uid, uid, self.spam_message[0])
+                if ent[1] == 'auto':
+                    ent[2], ent[3] = self.anonMessageSend(cid, uid, self.spam_message[0])
+                pass
+                if ent[2]:
+                    succes_counter+=1
+
+
+            self.send_message(tid, 'Le message a été envoye: <b>' + str(succes_counter) + ' of '
+                              + str(total_counter) + '</b> avec success.\n\nEt vous Margo, vous ete la femme de rêve!🐇🐇🐇',
+                              parse_mode='html')
+            try:
+                self.edit_message_reply_markup(tid,
+                                               message_id=self.spam_message[1].message_id, reply_markup='')
+            except:
+                pass
+            self.spam_message = None
+            result = [[x[3]] for x in dest]
+            self.data_table.setValue(result, 'cold', 'D2')
+            pass
 
         @self.message_handler(commands=['start'])
         @self.single_user_decorator
@@ -759,6 +763,18 @@ class SurveyBot(telebot.TeleBot):
                 pass
             pass
 
+        @self.callback_query_handler(func=lambda c: c.data.startswith('clearspam'))
+        @self.single_user_decorator
+        def clear_spam(callback_query: types.CallbackQuery):
+            self.answer_callback_query(callback_query.id)
+            self.spam_message = None
+            try:
+                self.edit_message_reply_markup(callback_query.message.chat.id,
+                                               message_id=callback_query.message.message_id, reply_markup='')
+            except:
+                pass
+
+
         @self.callback_query_handler(func=lambda c: c.data.startswith('pay'))
         @self.single_user_decorator
         def pay_hendler(callback_query: types.CallbackQuery):
@@ -977,6 +993,8 @@ class SurveyBot(telebot.TeleBot):
                     pass
                 return None
             self.__add_to_log(uid, {'command': 'nextl'})
+            curr_lesson = self.data_table.getFieldValue(uid, 'curr_lesson')
+            self.data_table.setFieldValue(uid, [curr_lesson+1, 1], ['curr_lesson', 'lessons_at_once'])
             goback_callback_button(callback_query)
 
         @self.callback_query_handler(func=lambda c: c.data.startswith('tch'))
@@ -1041,6 +1059,7 @@ class SurveyBot(telebot.TeleBot):
 
             except Exception as err:
                 print(err)
+                self.spam_message = None
                 if cid in self.user_chat_id:
                     self.__add_to_log(self.__find_keys(self.user_chat_id, cid), {'exit': 'Failed', 'error':err, 'command': command})
                 else:
@@ -1095,6 +1114,57 @@ class SurveyBot(telebot.TeleBot):
 
         pass
 
+    def anonMessageSend(self, dst_id, uid, content):
+        markup = []
+        for i in range(len(content)):
+            if len(content[i]['buttons']) > 0:
+                markup.append(types.InlineKeyboardMarkup(row_width=2))
+                for b in content[i]['buttons']:
+                    markup[-1].add(b)
+            else:
+                markup.append(None)
+
+        for i in range(len(content)):
+            m = content[i]['content']
+            mrk = markup[i]
+
+            mtype = m[1]
+            if m[0] == '':
+                continue
+            print('Sending part of message')
+            try:
+                if mtype == tp.MSG_TYPE.text:
+                    corr_m = m[0]
+                    field = re.findall('\?\?\?(\S+)\?\?\?', corr_m)
+                    for f in field:
+                        val = self.data_table.getFieldValue(uid, f.strip())
+                        corr_m = corr_m.replace('???' + f + '???', str(val))
+                    self.send_message(dst_id, corr_m, reply_markup=mrk,
+                                      parse_mode='html')  # TODO define abstract class MSG sending an apppropriate type of msg (method send())
+                elif mtype == tp.MSG_TYPE.gallery:
+                    gal = [telebot.types.InputMediaPhoto(p) for p in content[i]['content'][0]]
+                    self.send_media_group(dst_id, gal)
+                elif mtype == tp.MSG_TYPE.image:
+                    self.send_photo(dst_id, m[0], reply_markup=mrk)
+                elif mtype == tp.MSG_TYPE.video:
+                    try:
+                        self.send_video(dst_id, m[0], reply_markup=mrk)
+                    except:
+                        corr_url = m[0].replace('https://dl.dropboxusercontent.com/', 'https://www.dropbox.com/')
+                        self.send_message(dst_id, corr_url)
+                elif mtype == tp.MSG_TYPE.audio:
+                    self.send_audio(dst_id, m[0], reply_markup=mrk)
+                elif mtype == tp.MSG_TYPE.audionote:
+                    self.send_voice(dst_id, m[0])
+            except Exception as err:
+                if err.description == "Forbidden: bot was blocked by the user":
+                    return False, 'Blocked'
+                try:
+                    self.send_message(dst_id, m[0], reply_markup=mrk)
+                except:
+                    print('Err in sendcold: ' + str(dst_id) + ': ' + str(err) + '. Continue spam sending...')
+        return True, 'Success'
+        pass
     def init_state(self, _id=-1):
         print('init_state')
         all_pupils = self.data_table.getAllValue('pupils')
@@ -1281,7 +1351,7 @@ class SurveyBot(telebot.TeleBot):
         if int(result_A1) == 0:
             self.data_table.setFieldValue(uid, 'A1', 'level')
 
-        self.data_table.setFieldValues(uid, [1, 1], ['curr_lesson', 'lessons_at_once'])
+        #self.data_table.setFieldValues(uid, [1, 1], ['curr_lesson', 'lessons_at_once'])
         level = self.data_table.getFieldValue(uid, 'level')
         if level is None or level == '' or int(result_A1)>1:
             txt += 'Сейчас мы посмотрим ваш тест, и преподаватель предложит, с чего лучше начать!\n'
@@ -1980,7 +2050,7 @@ class SurveyBot(telebot.TeleBot):
         #self.user_cell_position[uid] = targetCell
         open_input_flad = 0
         for b in content:
-            title, addr, sp = b
+            title, addr, sp = b[:3]
             title = title.strip()
             if sp == '/url':
                 btns.append(types.InlineKeyboardButton(title, url=addr))
