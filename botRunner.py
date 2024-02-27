@@ -1936,8 +1936,8 @@ class SurveyBot(telebot.TeleBot):
             if sp.split(':')[0] == '/reminder':
                 if id in self.reminders:
                     continue
-                _when = datetime.utcnow() + dt.timedelta(minutes=int(sp.split(':')[1]))
-                _when = datetime.utcnow() + dt.timedelta(minutes=3) # TODO comment here for debug
+                _when = datetime.utcnow() + dt.timedelta(minutes=3)
+                _when = datetime.utcnow() + dt.timedelta(minutes=int(sp.split(':')[1]))  # TODO comment here for debug
                 event_stamp = str(_when.isoformat()) + ';' + addr
                 self.data_table.setFieldValue(id, event_stamp, 'reminder')
                 self.reminders[id] = {'time': _when, 'cell': addr}
