@@ -121,6 +121,7 @@ def timer_control():
 
 @client.on(events.ChatAction())
 async def normal_handler(event):
+    global superbot_state
     if (event.user_joined or event.user_added):
         state_f = open(superbot_state_filepath, 'r')
         superbot_state = json.load(state_f)
@@ -132,10 +133,20 @@ async def normal_handler(event):
                    msg = await client.kick_participant(event.chat_id, event.user_id)
             return None
 
+        remove_ent = None;
         for ch in superbot_state['tmp_chat_id']:
             if -int(ch['id'])==int(event.chat_id):
                 await client.send_message(ch['botuser'], '/savechannel;' + str(event.user.id) + ';' + str(event.chat_id) + ';' + event.action_message.date.isoformat())
-                superbot_state['tmp_chat_id'].remove(ch)
+                remove_ent = ch
+                break
+        try:
+            superbot_state['tmp_chat_id'].remove(remove_ent)
+            state_f = open(superbot_state_filepath, 'w')
+            json.dump(superbot_state, state_f, indent=4)
+            state_f.close()
+        except:
+            pass
+
         pass
 
 @client.on(events.NewMessage(incoming=True))
@@ -204,6 +215,8 @@ async def normal_handler(event):
             await client.send_message(botuser, txt, parse_mode='html')  # sending a link to a user.
             await client(functions.messages.DeleteChatRequest(chat_id=result.chats[0].id))
 
+
+
     try:
         state_f = open(superbot_state_filepath, 'r')
         superbot_state = json.load(state_f)
@@ -211,8 +224,6 @@ async def normal_handler(event):
         state_f = open(superbot_state_filepath, 'w')
         json.dump(superbot_state, state_f, indent=4)
         state_f.close()
-
-
 
 
 client.start()
