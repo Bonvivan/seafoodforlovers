@@ -58,7 +58,7 @@ class GoogleTableReader():
 
         print('Created reader for:' + 'https://docs.google.com/spreadsheets/d/' + spreadsheetId)
 
-        threading.Timer(300.0, self.__resetAccessCounter).start()
+        threading.Timer(300, self.__resetAccessCounter).start()
         threading.Timer(313.0, self.__reconnect).start()
         pass
 
@@ -552,7 +552,7 @@ class GoogleTableReader():
             for h in ent:
                 addr = self.__addRowToAddres(self.logHeader['sheet'] +'!' + self.alphabet[self.logHeader['header'][h]], self.logHeader['next_row'])
                 value = ent[h]
-                body['data'].append({'range': addr, 'values': [[str(value)]]})
+                body['data'].append({'range': addr, 'values': [[value]]})
 
         if len(self.logQueue)>0:
             try:

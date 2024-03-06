@@ -394,7 +394,7 @@ class SurveyBot(telebot.TeleBot):
                     try:
                         self.get_chat_member(cid, uid)
                         now = datetime.utcnow().date()
-                        link = self.create_chat_invite_link(int(self.user_chat_id[uid])).invite_link
+                        link = self.create_chat_invite_link(cid).invite_link
                         self.data_table.setFieldValue(uid, link, 'chat_id')
                         data_table.setFieldValues(int(uid), [cid, now.isoformat()], ['chat_id', 'date_start'])
                         self.user_chat_id[int(uid)] = cid
@@ -1366,7 +1366,7 @@ class SurveyBot(telebot.TeleBot):
 
         #self.data_table.setFieldValues(uid, [1, 1], ['curr_lesson', 'lessons_at_once'])
         level = self.data_table.getFieldValue(uid, 'level')
-        if level is None or level == '' or int(result_A1)>1:
+        if level is None or level == '':
             txt += 'Сейчас мы посмотрим ваш тест, и преподаватель предложит, с чего лучше начать!\n'
             txt += 'Результат теста: \n'
             txt += 'A1: ' + result_A1 + '/11\n'
@@ -1979,28 +1979,7 @@ class SurveyBot(telebot.TeleBot):
                 callback = 'saveuser;' + '' + ';' + user_status + ';' + addr
                 btns.append(types.InlineKeyboardButton(title, callback_data=callback))
                 continue
-            '''
-            if sp == '/pay1':
-                callback = 'pay;' + user_status + ';' + addr + ';1'
-                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
-                pass
-            if sp == '/pay2':
-                callback = 'pay;' + user_status + ';' + addr + ';2'
-                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
-                pass
-            if sp == '/pay3':
-                callback = 'pay;' + user_status + ';' + addr + ';3'
-                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
-                pass
-            if sp == '/pay4':
-                callback = 'pay;' + user_status + ';' + addr + ';4'
-                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
-                pass
-            if sp == '/pay_online':
-                callback = 'pay;' + user_status + ';' + addr + ';4'
-                btns.append(types.InlineKeyboardButton(title, callback_data=callback))
-                pass
-            '''
+
             if sp == '/edit':
                 if (self.user_cell_position[id] in self.data_dstn):
                     fieldname = self.data_dstn[self.user_cell_position[id]]
