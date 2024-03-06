@@ -336,7 +336,7 @@ class SurveyBot(telebot.TeleBot):
                         ent[2], ent[3] = False,'Filtered'
                 if ent[1] == 'bot':
                     ent[2], ent[3] = self.anonMessageSend(uid, uid, self.spam_message[0])
-                if ent[1] == 'auto':
+                if ent[1] == 'auto' or ent[1] == '':
                     ent[2], ent[3] = self.anonMessageSend(cid, uid, self.spam_message[0])
                 pass
                 if ent[2]:
@@ -996,8 +996,10 @@ class SurveyBot(telebot.TeleBot):
                     pass
                 return None
             self.__add_to_log(uid, {'command': 'nextl'})
+
             curr_lesson = int(self.data_table.getFieldValue(uid, 'curr_lesson'))
             self.data_table.setFieldValues(uid, [curr_lesson+1, 1], ['curr_lesson', 'lessons_at_once'])
+
             goback_callback_button(callback_query)
 
         @self.callback_query_handler(func=lambda c: c.data.startswith('tch'))
@@ -1787,7 +1789,7 @@ class SurveyBot(telebot.TeleBot):
 
         content = tp.parseMessageFast(msg)
         for c in content:
-            self.__createKeyFromContent(uid, _id, c['buttons'])
+            self.__createKeyFromContent(uid, _id, c['buttons'], passive = True)
 
 
     def say_hello(self, user_id, chat_id=-1):  # sending of a reply message
@@ -1943,7 +1945,7 @@ class SurveyBot(telebot.TeleBot):
         self.data_table.setFieldValues(id, [status, str(datetime.utcnow().isoformat()), *more_val], ['status', 'last_activity_date', *more_fields])
 
 
-    def __createKeyFromContent(self, id, chat_id, content):
+    def __createKeyFromContent(self, id, chat_id, content, passive = False):
 
         self.user_command[id] = []#.pop(id, None)
         self.teacher_command[chat_id] = []#.pop(chat_id, None)
@@ -2017,7 +2019,7 @@ class SurveyBot(telebot.TeleBot):
                 #btns.append(None)
                 self.conditions[chat_id].append(['check:' + title, addr])
                 pass
-            if sp.split(':')[0] == '/reminder':
+            if sp.split(':')[0] == '/reminder' and not(passive):
                 if id in self.reminders:
                     continue
                 _when = datetime.utcnow() + dt.timedelta(minutes=3)

@@ -141,6 +141,11 @@ async def normal_handler(event):
                 break
         try:
             superbot_state['tmp_chat_id'].remove(remove_ent)
+
+            state_f = open(superbot_state_filepath, 'w')
+            json.dump(superbot_state, state_f, indent=4)
+            state_f.close()
+
         except:
             pass
 
@@ -211,6 +216,7 @@ async def normal_handler(event):
             await client.send_message(botuser, txt, parse_mode='html')  # sending a link to a user.
             await client(functions.messages.DeleteChatRequest(chat_id=result.chats[0].id))
 
+
     try:
         state_f = open(superbot_state_filepath, 'r')
         superbot_state = json.load(state_f)
@@ -218,9 +224,6 @@ async def normal_handler(event):
         state_f = open(superbot_state_filepath, 'w')
         json.dump(superbot_state, state_f, indent=4)
         state_f.close()
-
-
-
 
 
 client.start()
