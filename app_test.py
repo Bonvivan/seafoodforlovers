@@ -121,6 +121,7 @@ def timer_control():
 
 @client.on(events.ChatAction())
 async def normal_handler(event):
+    global superbot_state
     if (event.user_joined or event.user_added):
         state_f = open(superbot_state_filepath, 'r')
         superbot_state = json.load(state_f)
@@ -132,10 +133,17 @@ async def normal_handler(event):
                    msg = await client.kick_participant(event.chat_id, event.user_id)
             return None
 
+        remove_ent = None;
         for ch in superbot_state['tmp_chat_id']:
             if -int(ch['id'])==int(event.chat_id):
                 await client.send_message(ch['botuser'], '/savechannel;' + str(event.user.id) + ';' + str(event.chat_id) + ';' + event.action_message.date.isoformat())
-                superbot_state['tmp_chat_id'].remove(ch)
+                remove_ent = ch
+                break
+        try:
+            superbot_state['tmp_chat_id'].remove(remove_ent)
+        except:
+            pass
+
         pass
 
 @client.on(events.NewMessage(incoming=True))
@@ -158,9 +166,9 @@ async def normal_handler(event):
                     print('Trying to create extra chat for the same user! Intrrrupted!')
                     return None
 
-            result = await client(functions.messages.CreateChatRequest(users=admin_users,title= 'Langusto italiano per ' + pupil))
-            txt = 'Это чат для обучения итальянскому с Langusto! \n\n Если ничего не происходит наберите /start для продолжения.'
-            await client.send_message(result.chats[0].id, txt)
+            #result = await client(functions.messages.CreateChatRequest(users=admin_users,title= 'Langusto italiano per ' + pupil))
+            #txt = 'Это чат для обучения итальянскому с Langusto! \n\n Если ничего не происходит наберите /start для продолжения.'
+            ##await client.send_message(result.chats[0].id, txt)
             txt = '/status чтоб помотреть доступные команды;\n/start если ничего не происходит или кажется, что что-то сломалось.'
 
             for bu in admin_users:
@@ -169,11 +177,10 @@ async def normal_handler(event):
                 except:
                     pass
 
-            msg = await client.send_message(result.chats[0].id, txt)
-            msg.pin(pm_oneside=True, notify=True)
+            #msg = await client.send_message(result.chats[0].id, txt)
+            #msg.pin(pm_oneside=True, notify=True)
 
             invite_link = await client(ExportChatInviteRequest(result.chats[0]))
-
             msg = await client.send_message(result.chats[0].id, txt)
             await msg.pin(pm_oneside=True, notify=True)
 
@@ -192,7 +199,7 @@ async def normal_handler(event):
 
                 for au in admin_users:
                     try:
-                        await client.send_message(au, '/tunnelmsg;'+au+'Создан новый обучающий чат, ожидание присоединения пользователя: \n' + invite_link)
+                        await client.send_message(au, '/tunnelmsg;'+au+';Создан новый обучающий чат, ожидание присоединения пользователя:\n' + invite_link)
                     except:
                         pass
             else:
@@ -211,6 +218,7 @@ async def normal_handler(event):
         state_f = open(superbot_state_filepath, 'w')
         json.dump(superbot_state, state_f, indent=4)
         state_f.close()
+
 
 
 

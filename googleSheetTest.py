@@ -58,7 +58,7 @@ class GoogleTableReader():
 
         print('Created reader for:' + 'https://docs.google.com/spreadsheets/d/' + spreadsheetId)
 
-        threading.Timer(60.0, self.__resetAccessCounter).start()
+        threading.Timer(300.0, self.__resetAccessCounter).start()
         threading.Timer(313.0, self.__reconnect).start()
         pass
 
@@ -110,7 +110,7 @@ class GoogleTableReader():
 
     @my_shiny_new_decorator
     def __resetAccessCounter(self):
-        threading.Timer(60.0, self.__resetAccessCounter).start()
+        threading.Timer(300.0, self.__resetAccessCounter).start()
         print('Access counter, read: ' + str(self.read_counter))
         self.read_counter  = 0
         self.write_counter = 0
@@ -192,13 +192,14 @@ class GoogleTableReader():
             entity = entities[_id]
             uid = _id
             record = {}
-            for h in entity.keys():
+            for h in entity:
                 if h in self.logHeader['header']:
                     record[h] = entity[h]
 
-            self.logQueue.append({'id':uid, **record})
+            self.logQueue.append({'id': uid, **record})
+
             for h in self.logHeader['header']:
-                if not(h in self.logQueue[-1]):
+                if not(h in self.logQueue[-1].keys()):
                     if uid in self.pupilsData:
                         self.logQueue[-1][h] = self.pupilsData[uid][self.fieldsIndexer.get(h, -1)]
             pass
@@ -551,7 +552,7 @@ class GoogleTableReader():
             for h in ent:
                 addr = self.__addRowToAddres(self.logHeader['sheet'] +'!' + self.alphabet[self.logHeader['header'][h]], self.logHeader['next_row'])
                 value = ent[h]
-                body['data'].append({'range': addr, 'values': [[value]]})
+                body['data'].append({'range': addr, 'values': [[str(value)]]})
 
         if len(self.logQueue)>0:
             try:

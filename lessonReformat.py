@@ -17,6 +17,8 @@ old_lessons = lesson_table.getAllValue(sheetName='lsn_tmp')
 #old_lessons = old_lessons[1:]
 
 start_row = -1
+
+
 '''
 [[;lezione_B2!E1;/reminder:420;???curr_lesson???<=1]]
 [[;lezione_B2!F1;/reminder:420;???curr_lesson???==2]]
