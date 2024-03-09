@@ -2,6 +2,7 @@ from telebot import types
 
 class SCOMMANDS:
     create_a_chat = '/create_a_chat'
+    create_a_group = '/create_a_group'
     pass
 
 

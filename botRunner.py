@@ -228,9 +228,9 @@ class SurveyBot(telebot.TeleBot):
                 link = self.create_chat_invite_link(cid).invite_link
                 data_table.setFieldValue(int(uid), link, 'chat_link')
 
-                p_message = self.send_message(cid, '<b>/status</b> чтоб посмотреть доступные команды;\n<b>/start</b> если ничего не происходит или кажется, что что-то сломалось.',
-                                              parse_mode='html')
-                self.pin_chat_message(chat_id=p_message.chat.id, message_id=p_message.message_id)
+               # p_message = self.send_message(cid, '<b>/status</b> чтоб посмотреть доступные команды;\n<b>/start</b> если ничего не происходит или кажется, что что-то сломалось.',
+               #                               parse_mode='html')
+               # self.pin_chat_message(chat_id=p_message.chat.id, message_id=p_message.message_id)
 
                 self.start_lesson(int(uid), cid, message)
                 self.cleanReminders(int(uid))
@@ -256,13 +256,16 @@ class SurveyBot(telebot.TeleBot):
                 except:
                     flag = False
 
-                if bool(flag):
+                try:
                     self.send_message(_id, cmd['args'][1])
+                except Exception as err:
+                    print('Cant tunnel msg ot ' + str(_id) + ' due to: ' + str(err))
+
+                if bool(flag):
                     self.user_cell_position[_id] = addr
                     self.data_table.setFieldValue(_id, addr, 'status')
                     print('MSG to user: ' + str(_id) + '; msg: ' + str(message.text))
-                else:
-                    self.send_message(_id, cmd['args'][1])
+
 
             except Exception as err:
                 print('Err in tunnel_msg: ' + str(err))
@@ -362,6 +365,9 @@ class SurveyBot(telebot.TeleBot):
             print('start_command')
             uid = message.from_user.id
             cid = message.chat.id
+
+            if not(message.text.strip()=='/start'):
+                return None
 
             print('START from: ' + str(uid) + ' ' + str(message.from_user.username))
             print('Chat id: ' + str(cid))
@@ -610,6 +616,9 @@ class SurveyBot(telebot.TeleBot):
             uid = message.from_user.id
             cid = message.chat.id
 
+            if not(message.text.strip()=='/status'):
+                return None
+
             self.send_chat_action(cid, 'typing')
 
             teacher = False
@@ -633,11 +642,10 @@ class SurveyBot(telebot.TeleBot):
             if not(bot_control):
                 user_status = self.data_table.getPupilStatus(uid)
                 if not(user_status):
-                    self.send_message(cid, 'Вы новый ученик: \n /start чтоб перейти к обучению.')
+                    self.send_message(cid, 'Вы новый ученик: \n /start чтоб выбрать курс и перейти к обучению.')
                     return None
                 elif int(user_status['chat_id']) == -1:
-                    self.send_message(cid, "Вы проходите опрос.")
-                    self.send_message(cid, "\n/start чтоб перейти к последнему вопросу;")
+                    self.send_message(cid, 'Вы новый ученик: \n /start чтоб выбрать курс и перейти к обучению.')
                     return None
 
                 chat_id = int(self.user_chat_id[uid])
