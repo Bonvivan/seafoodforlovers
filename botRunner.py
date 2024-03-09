@@ -266,7 +266,6 @@ class SurveyBot(telebot.TeleBot):
                     self.data_table.setFieldValue(_id, addr, 'status')
                     print('MSG to user: ' + str(_id) + '; msg: ' + str(message.text))
 
-
             except Exception as err:
                 print('Err in tunnel_msg: ' + str(err))
                 pass
