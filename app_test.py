@@ -167,10 +167,13 @@ async def normal_handler(event):
                     print('Trying to create extra chat for the same user! Intrrrupted!')
                     return None
 
-            #result = await client(functions.messages.CreateChatRequest(users=admin_users,title= 'Langusto italiano per ' + pupil))
-            #txt = 'Это чат для обучения итальянскому с Langusto! \n\n Если ничего не происходит наберите /start для продолжения.'
-            ##await client.send_message(result.chats[0].id, txt)
-            txt = '/status чтоб помотреть доступные команды;\n/start если ничего не происходит или кажется, что что-то сломалось.'
+            result = await client(functions.messages.CreateChatRequest(users=admin_users,title= 'Langusto italiano per ' + pupil))
+            #result = await client(functions.chatlistsTogglePreHistoryHiddenRequest(channel=result.chats[0].id, enabled=True))
+            #txt = '🤖Это чат для обучения итальянскому с <b>Langusto!</b>🦞🇮🇹\n'
+            #await client.send_message(result.chats[0].id, txt)
+            #txt = '/status чтоб помотреть доступные команды;\n/start если ничего не происходит или кажется, что что-то сломалось.'
+            #msg = await client.send_message(result.chats[0].id, txt, parse_mode='html')
+            #await msg.pin(pm_oneside=True, notify=True)
 
             for bu in admin_users:
                 try:
@@ -178,12 +181,8 @@ async def normal_handler(event):
                 except:
                     pass
 
-            #msg = await client.send_message(result.chats[0].id, txt)
-            #msg.pin(pm_oneside=True, notify=True)
-
             invite_link = await client(ExportChatInviteRequest(result.chats[0]))
-            msg = await client.send_message(result.chats[0].id, txt)
-            await msg.pin(pm_oneside=True, notify=True)
+
 
             z = re.match(r'.*link=\'(https:\S+)\'.*', str(invite_link))
             if z.groups()[0]:
@@ -200,7 +199,9 @@ async def normal_handler(event):
 
                 for au in admin_users:
                     try:
-                        await client.send_message(au, '/tunnelmsg;'+au+';Создан новый обучающий чат, ожидание присоединения пользователя:\n' + invite_link)
+                        entity = await client.get_entity(au)
+                        aid = entity.id
+                        await client.send_message(admin_users[0], '/tunnelmsg;'+ str(aid) +';✅ Создан новый обучающий чат, ожидание присоединения пользователя:\n' + invite_link)
                     except:
                         pass
             else:

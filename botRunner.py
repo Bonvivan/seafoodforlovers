@@ -256,13 +256,15 @@ class SurveyBot(telebot.TeleBot):
                 except:
                     flag = False
 
-                if bool(flag):
+                try:
                     self.send_message(_id, cmd['args'][1])
+                except Exception as err:
+                    print('Cant tunnel msg ot ' + str(_id) + ' due to: ' + str(err))
+
+                if bool(flag):
                     self.user_cell_position[_id] = addr
                     self.data_table.setFieldValue(_id, addr, 'status')
                     print('MSG to user: ' + str(_id) + '; msg: ' + str(message.text))
-                else:
-                    self.send_message(_id, cmd['args'][1])
 
             except Exception as err:
                 print('Err in tunnel_msg: ' + str(err))
@@ -362,6 +364,9 @@ class SurveyBot(telebot.TeleBot):
             print('start_command')
             uid = message.from_user.id
             cid = message.chat.id
+
+            if not(message.text.strip()=='/start'):
+                return None
 
             print('START from: ' + str(uid) + ' ' + str(message.from_user.username))
             print('Chat id: ' + str(cid))
@@ -609,6 +614,9 @@ class SurveyBot(telebot.TeleBot):
             print('status_command')
             uid = message.from_user.id
             cid = message.chat.id
+
+            if not(message.text.strip()=='/status'):
+                return None
 
             self.send_chat_action(cid, 'typing')
 
