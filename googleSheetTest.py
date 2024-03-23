@@ -17,6 +17,8 @@ import json
 
 def flatten(l):
     return [item for sublist in l for item in sublist]
+
+
 class GoogleTableReader():
     CREDENTIALS_FILE = 'resources/seafoodforlovers-451d571f02c4.json'
     credentials = None

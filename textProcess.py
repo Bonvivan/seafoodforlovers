@@ -124,12 +124,6 @@ def parseMessageFast(msg, past_answer=''): #TODO implement a class message, keep
     text = msg
     text = text.split('--new-message--')
 
-    '''
-    l_number = re.match('.*LEZIONE\s*(\d+).\d+.*', text[0])
-    if (l_number):
-        result['lesson'] = int(l_number.groups()[0])
-    '''
-
     for txt in text:
         txt = txt.strip()
 
@@ -185,7 +179,7 @@ def parseMessage(msg, past_answer=''): #TODO implement a class message, keeping 
                 result.append({'content':(url, r), 'buttons':[]})
             except:
                 result.append({'content':(url, 'text/html; charset=UTF-8'), 'buttons':[]})
-            #text = text[url_pos + len(url) + 1:]
+
             continue
 
 

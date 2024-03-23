@@ -128,14 +128,16 @@ async def normal_handler(event):
         superbot_state = tp.correct_time(superbot_state)
 
         if event.user_added:
-            if self_id != event.user_id:
+            if self_id != event.user_id: #TODO: late any teacher add the user
                 for uid in event.input_users:
                    msg = await client.kick_participant(event.chat_id, event.user_id)
             return None
 
-        remove_ent = None;
+        remove_ent = None
+
         for ch in superbot_state['tmp_chat_id']:
             if -int(ch['id'])==int(event.chat_id):
+                await client.send_message(ch['botuser'], '/startchat;' + str(event.user.id) + ';' + str(event.chat_id) + ';' + event.action_message.date.isoformat())
                 await client.send_message(ch['botuser'], '/savechannel;' + str(event.user.id) + ';' + str(event.chat_id) + ';' + event.action_message.date.isoformat())
                 remove_ent = ch
                 break
@@ -150,7 +152,6 @@ async def normal_handler(event):
 @client.on(events.NewMessage(incoming=True))
 async def normal_handler(event):
     global superbot_state
-    print('!!!!!!!!!!!!!!New messega resiceved 1')
     result = None
     msg_txt = event.message.to_dict()['message']
     print('New messega resiceved: ' + str(msg_txt))
@@ -164,25 +165,24 @@ async def normal_handler(event):
 
             for ent in superbot_state['tmp_chat_id']:
                 if int(ent['pid']) == int(pupil):
-                    print('Trying to create extra chat for the same user! Intrrrupted!')
+                    print('Trying to create extra chat for the same user! Intrrupted!')
                     return None
 
-            result = await client(functions.channels.CreateChannelRequest(title= 'Langusto italiano per ' + pupil, about= 'Italian classes from Langusto', broadcast=False, megagroup=False))
-            result = await client(functions.messages.AddChatUserRequest(result.chats[0], admin_users, fwd_limit=10))
-            #result = await client(functions.channels.TogglePreHistoryHiddenRequest(channel=result.chats[0], enabled=True))
+            result = await client(functions.channels.CreateChannelRequest(title = 'Langusto italiano per ' + pupil, about = 'Italian classes Langusto 🦞🇮🇹', broadcast=False, megagroup=False))
+            newchat = result.chats[0]
+            result = await client(functions.channels.InviteToChannelRequest(newchat.id, admin_users))
 
+            txt = 'Это чат для обучения итальянскому с <b>Langusto</b>🦞🇮🇹!'
+            await client.send_message(result.chats[0].id, txt, parse_mode='html')
+            txt = '<b>/status</b> чтоб поcмотреть доступные команды;\n<b>/start</b> если ничего не происходит или кажется, что что-то сломалось.'
 
-            #txt = 'Это чат для обучения итальянскому с Langusto! \n\n Если ничего не происходит наберите /start для продолжения.'
-            ##await client.send_message(result.chats[0].id, txt)
-            txt = '/status чтоб помотреть доступные команды;\n/start если ничего не происходит или кажется, что что-то сломалось.'
-
-            for bu in admin_users:
+            for au in admin_users:
                 try:
-                    await client.edit_admin(result.chats[0], bu, is_admin=True, add_admins=False)
+                    await client.edit_admin(newchat.id, au, is_admin=True, add_admins=False)
                 except:
                     pass
 
-            msg = await client.send_message(result.chats[0].id, txt)
+            msg = await client.send_message(newchat.id, txt, parse_mode='html')
             msg.pin(pm_oneside=True, notify=True)
 
             invite_link = await client(ExportChatInviteRequest(result.chats[0]))
@@ -193,8 +193,7 @@ async def normal_handler(event):
             if z.groups()[0]:
                 invite_link = z.groups()[0]
                 txt = '/tunnelmsg;' + str(
-                    pupil) + ';Это приглашение в чат для обучения итальянскому. Переходи в группу и начни свой первый урок!' + invite_link
-                txt += ';' + addr + ';1'
+                    pupil) + ';Это приглашение в чат для обучения итальянскому 🦞🇮🇹. Переходи в группу и начни свой первый урок!' + invite_link
                 await client.send_message(admin_users[0], txt, parse_mode='html')  # sending a link to a user.
                 superbot_state['tmp_chat_id'].append({'id': result.chats[0].id, 'pid': pupil,'botuser': botuser, 'admin': admin_users,
                                                       'time': result.chats[0].date.isoformat()})
@@ -206,9 +205,10 @@ async def normal_handler(event):
                     try:
                         entity = await client.get_entity(au)
                         aid = entity.id
-                        await client.send_message(au, '/tunnelmsg;'+str(aid)+';Создан новый обучающий чат, ожидание присоединения пользователя:\n' + invite_link)
+                        await client.send_message(admin_users[0], '/tunnelmsg;'+str(aid)+';Создан новый обучающий чат, ожидание присоединения пользователя:\n' + invite_link)
                     except:
                         pass
+                await client.send_message(admin_users[0], '/savechannel;' + pupil + ';' + str(newchat) + ';' + event.action_message.date.isoformat() + ';' + addr)
             else:
                 raise Exception(f"Empty link on chat, chat was not created")
 
@@ -217,9 +217,7 @@ async def normal_handler(event):
             txt += ';' + addr + ';0'
             await client.send_message(botuser, txt, parse_mode='html')  # sending a link to a user.
             await client(functions.messages.DeleteChatRequest(chat_id=result.chats[0].id))
-        save_state(superbot_state_filepath)
-        return None
-
+        pass
     if command['request']==cm.SCOMMANDS.create_a_chat:
         try:
             admin_users = command['args'][1:-1]
@@ -233,14 +231,6 @@ async def normal_handler(event):
                     return None
 
             result = await client(functions.messages.CreateChatRequest(users=admin_users,title= 'Langusto italiano per ' + pupil))
-            #result = await client(functions.chatlistsTogglePreHistoryHiddenRequest(channel=result.chats[0].id, enabled=True))
-            #txt = '🤖Это чат для обучения итальянскому с <b>Langusto!</b>🦞🇮🇹\n'
-            #await client.send_message(result.chats[0].id, txt)
-            #txt = '/status чтоб помотреть доступные команды;\n/start если ничего не происходит или кажется, что что-то сломалось.'
-            #msg = await client.send_message(result.chats[0].id, txt, parse_mode='html')
-            #await msg.pin(pm_oneside=True, notify=True)
-
-
             for bu in admin_users:
                 try:
                     await client.edit_admin(result.chats[0], bu, is_admin=True, add_admins=False)
@@ -274,14 +264,77 @@ async def normal_handler(event):
                         pass
             else:
                 raise Exception(f"Empty link on chat, chat was not created")
-
         except Exception as err:
             txt = '/tunnelmsg;' + str(pupil) + ';Не удалось создать чать, <b>ссылка придет чуть позже.</b>'
             txt += ';' + addr + ';0'
             await client.send_message(botuser, txt, parse_mode='html')  # sending a link to a user.
             await client(functions.messages.DeleteChatRequest(chat_id=result.chats[0].id))
+        pass
 
-        save_state(superbot_state_filepath)
+    if command['request']==cm.SCOMMANDS.create_a_chat1:
+        try:
+            admin_users = command['args'][1:-1]
+            pupil       = command['args'][-1]
+            addr        = command['args'][ 0]
+            botuser     = command['args'][ 1]
+
+            for ent in superbot_state['tmp_chat_id']:
+                if int(ent['pid']) == int(pupil):
+                    print('Trying to create extra chat for the same user! Intrrrupted!')
+                    return None
+
+            result = await client(functions.messages.CreateChatRequest(users=admin_users,title= 'Langusto italiano per ' + pupil))
+            for bu in admin_users:
+                try:
+                    await client.edit_admin(result.chats[0], bu, is_admin=True, add_admins=False)
+                except:
+                    pass
+
+            invite_link = await client(ExportChatInviteRequest(result.chats[0]))
+
+            z = re.match(r'.*link=\'(https:\S+)\'.*', str(invite_link))
+            if z.groups()[0]:
+                invite_link = z.groups()[0]
+                txt = '/tunnelmsg;' + str(
+                    pupil) + ';Это приглашение в чат для обучения итальянскому. Переходи в группу и начни свой первый урок!' + invite_link
+                txt += ';' + addr + ';1'
+                await client.send_message(admin_users[0], txt, parse_mode='html')  # sending a link to a user.
+
+                txt = '/savechat;' + str(pupil) + ';' + str(result.chats[0].id) + ';' + addr
+                await client.send_message(admin_users[0], txt, parse_mode='html')  # sending a link to a user.
+
+                superbot_state['tmp_chat_id'].append({'id': result.chats[0].id, 'pid': pupil,'botuser': botuser, 'admin': admin_users,
+                                                      'time': result.chats[0].date.isoformat()})
+                state_f = open(superbot_state_filepath, 'w')
+                json.dump(superbot_state, state_f, indent=4)
+                state_f.close()
+
+                for au in admin_users:
+                    try:
+                        entity = await client.get_entity(au)
+                        aid = entity.id
+                        await client.send_message(admin_users[0], '/tunnelmsg;'+ str(aid) +';✅ Создан новый обучающий чат, ожидание присоединения пользователя:\n' + invite_link)
+                    except:
+                        pass
+            else:
+                raise Exception(f"Empty link on chat, chat was not created")
+        except Exception as err:
+            txt = '/tunnelmsg;' + str(pupil) + ';Не удалось создать чать, <b>ссылка придет чуть позже</b> автоматически.'
+            txt += ';' + addr + ';0'
+            await client.send_message(botuser, txt, parse_mode='html')  # sending a link to a user.
+            await client(functions.messages.DeleteChatRequest(chat_id=result.chats[0].id))
+
+            for au in admin_users:
+                try:
+                    entity = await client.get_entity(au)
+                    aid = entity.id
+                    await client.send_message(admin_users[0], '/tunnelmsg;' + str(
+                        aid) + ';🔴 Не удалось создать чат для ' + str(pupil) + '! 🔴\n Error: ' + str(err))
+                except:
+                    pass
+        pass
+
+    save_state(superbot_state_filepath)
 
 def save_state(path):
     try:
